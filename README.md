@@ -57,3 +57,38 @@ Saat pertama dibuka di dev build, app menampilkan tombol **izinkan akses penggun
   sesuai SDK. Resolusi peer yang gagal di `npm install` murni diatasi dengan
   `npm install --legacy-peer-deps` (konfliknya di `react-native-worklets`, peer
   opsional dari `expo-modules-core`).
+
+## Build & release Android (GitHub Actions)
+
+Workflow `.github/workflows/android-release.yml` jalan saat push tag `v*`
+(misal `v0.1.0`) atau manual via tab Actions > android release > Run workflow.
+Hasilnya: artifact `android` + GitHub Release di tag itu.
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+Isi release:
+
+- `app-release-signed.apk` — APK release bertanda tangan, install langsung.
+- `app-debug.apk` — APK debug, install langsung.
+- `app-release-signed.aab` — bundle release bertanda tangan, untuk Play Store.
+
+APK/AAB bertanda tangan hanya dibuat kalau 4 secrets ini ada di
+Settings > Secrets and variables > Actions:
+
+- `ANDROID_KEYSTORE_BASE64` — isi `release.keystore` di-encode base64.
+- `ANDROID_KEYSTORE_PASSWORD`
+- `ANDROID_KEY_ALIAS`
+- `ANDROID_KEY_PASSWORD`
+
+Tanpa 4 secrets itu, workflow tetap jalan tapi release hanya berisi
+`app-debug.apk`. Keystore dibuat sekali, di mesinmu sendiri (jangan commit
+ke repo):
+
+```bash
+keytool -genkeypair -v -keystore release.keystore -alias kuota-tracker \
+  -keyalg RSA -keysize 2048 -validity 10000
+base64 -w0 release.keystore
+```
