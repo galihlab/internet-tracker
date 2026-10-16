@@ -81,7 +81,7 @@ jobs:
           name: android
           path: |
             android/app/build/outputs/apk/release/app-release-signed.apk
-            android/app/build/outputs/apk/debug/app-debug.apk
+            android/app/build/outputs/apk/debug/app-*-debug.apk
             android/app/build/outputs/bundle/release/app-release-signed.aab
           if-no-files-found: warn
 
@@ -94,7 +94,7 @@ jobs:
           if [ "$HAS_KEYSTORE" = "true" ]; then
             FILES="android/app/build/outputs/apk/release/app-release-signed.apk android/app/build/outputs/bundle/release/app-release-signed.aab"
           else
-            FILES="android/app/build/outputs/apk/debug/app-debug.apk"
+            FILES="android/app/build/outputs/apk/debug/app-*-debug.apk"
           fi
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" $FILES --clobber
