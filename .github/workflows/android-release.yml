@@ -37,8 +37,7 @@ jobs:
       - name: setup android sdk
         uses: android-actions/setup-android@v3
         with:
-          api-level: 35
-          build-tools: 35.0.0
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
 
       - name: prebuild android
         run: npx expo prebuild --platform android --clean
