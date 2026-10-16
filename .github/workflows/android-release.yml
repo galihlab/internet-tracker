@@ -45,11 +45,13 @@ jobs:
           CI: "true"
 
       - name: build release apk + aab (unsigned)
-        run: ./gradlew -p android assembleRelease bundleRelease
+        working-directory: android
+        run: ./gradlew assembleRelease bundleRelease
 
       - name: build debug apk (fallback, tanpa keystore secrets)
         if: env.HAS_KEYSTORE != 'true'
-        run: ./gradlew -p android assembleDebug
+        working-directory: android
+        run: ./gradlew assembleDebug
 
       - name: sign release artifacts
         if: env.HAS_KEYSTORE == 'true'
