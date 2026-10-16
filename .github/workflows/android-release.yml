@@ -45,6 +45,7 @@ jobs:
           CI: "true"
 
       - name: build release apk + aab (unsigned)
+        if: env.HAS_KEYSTORE == 'true'
         working-directory: android
         run: ./gradlew assembleRelease bundleRelease
 
