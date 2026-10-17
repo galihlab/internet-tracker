@@ -68,11 +68,22 @@ jobs:
             -storepass "$KEYSTORE_PASSWORD" -keypass "$KEY_PASSWORD" \
             -signedjar android/app/build/outputs/bundle/release/app-release-signed.aab \
             android/app/build/outputs/bundle/release/app-release.aab "$KEY_ALIAS"
-          "$BT/apksigner" sign \
-            --ks /tmp/release.keystore --ks-pass "pass:$KEYSTORE_PASSWORD" \
-            --key-pass "pass:$KEY_PASSWORD" --ks-key-alias "$KEY_ALIAS" \
-            --out android/app/build/outputs/apk/release/app-release-signed.apk \
-            android/app/build/outputs/apk/release/app-release-unsigned.apk
+          # Split per-ABI menghasilkan satu APK unsigned per arsitektur
+          # (app-<abi>-release-unsigned.apk), bukan satu app-release-unsigned.apk.
+          # Tiap APK ditandatangani sendiri -> app-<abi>-release-signed.apk.
+          shopt -s nullglob
+          UNSIGNED_APKS=(android/app/build/outputs/apk/release/app-*-release-unsigned.apk)
+          if [ "${#UNSIGNED_APKS[@]}" -eq 0 ]; then
+            echo "::error::tidak ada APK release unsigned — cek split per-ABI / signingConfig release"
+            exit 1
+          fi
+          for UNSIGNED in "${UNSIGNED_APKS[@]}"; do
+            SIGNED="${UNSIGNED%-unsigned.apk}-signed.apk"
+            "$BT/apksigner" sign \
+              --ks /tmp/release.keystore --ks-pass "pass:$KEYSTORE_PASSWORD" \
+              --key-pass "pass:$KEY_PASSWORD" --ks-key-alias "$KEY_ALIAS" \
+              --out "$SIGNED" "$UNSIGNED"
+          done
           rm /tmp/release.keystore
 
       - name: upload artifacts
@@ -80,7 +91,7 @@ jobs:
         with:
           name: android
           path: |
-            android/app/build/outputs/apk/release/app-release-signed.apk
+            android/app/build/outputs/apk/release/app-*-release-signed.apk
             android/app/build/outputs/apk/debug/app-*-debug.apk
             android/app/build/outputs/bundle/release/app-release-signed.aab
           if-no-files-found: warn
@@ -92,7 +103,7 @@ jobs:
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
           if [ "$HAS_KEYSTORE" = "true" ]; then
-            FILES="android/app/build/outputs/apk/release/app-release-signed.apk android/app/build/outputs/bundle/release/app-release-signed.aab"
+            FILES="android/app/build/outputs/apk/release/app-*-release-signed.apk android/app/build/outputs/bundle/release/app-release-signed.aab"
           else
             FILES="android/app/build/outputs/apk/debug/app-*-debug.apk"
           fi
