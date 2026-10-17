@@ -1,1 +1,46 @@
-{"expo":{"android":{"adaptiveIcon":{"backgroundColor":"#E6F4FE","backgroundImage":"./assets/android-icon-background.png","foregroundImage":"./assets/android-icon-foreground.png","monochromeImage":"./assets/android-icon-monochrome.png"},"package":"com.galih.kuotatracker","predictiveBackGestureEnabled":false},"experiments":{"typedRoutes":true},"icon":"./assets/icon.png","ios":{"supportsTablet":true},"name":"Kuota Tracker","orientation":"portrait","plugins":["expo-router","./plugins/withUsageStatsPermission.js","./plugins/withAbiSplits.js","./plugins/withBundleInDebug.js","./plugins/withUnsignedRelease.js"],"scheme":"kuotatracker","slug":"kuota-tracker","userInterfaceStyle":"light","version":"1.0.0","web":{"favicon":"./assets/favicon.png"}}}
+{
+  "expo": {
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#FCFBF7",
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "monochromeImage": "./assets/adaptive-icon-monochrome.png"
+      },
+      "package": "com.galih.kuotatracker",
+      "predictiveBackGestureEnabled": false
+    },
+    "experiments": {
+      "typedRoutes": true
+    },
+    "icon": "./assets/icon.png",
+    "ios": {
+      "supportsTablet": true
+    },
+    "name": "Kuota Tracker",
+    "orientation": "portrait",
+    "plugins": [
+      "expo-router",
+      "./plugins/withUsageStatsPermission.js",
+      "./plugins/withAbiSplits.js",
+      "./plugins/withBundleInDebug.js",
+      "./plugins/withUnsignedRelease.js",
+      "./plugins/withReleaseMinify.js",
+      "expo-font",
+      "expo-splash-screen",
+      "expo-background-task",
+      "expo-notifications"
+    ],
+    "scheme": "kuotatracker",
+    "slug": "kuota-tracker",
+    "splash": {
+      "backgroundColor": "#FCFBF7",
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain"
+    },
+    "userInterfaceStyle": "light",
+    "version": "1.0.0",
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}

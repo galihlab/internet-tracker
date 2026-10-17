@@ -3,11 +3,20 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "dependencies": {
+    "@expo-google-fonts/fraunces": "^0.4.1",
+    "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-community/datetimepicker": "9.2.1",
     "expo": "~58.0.11",
+    "expo-background-task": "~58.0.11",
     "expo-constants": "~58.0.12",
+    "expo-font": "~58.0.8",
     "expo-linking": "~58.0.13",
+    "expo-notifications": "~58.1.5",
     "expo-router": "~58.0.20",
+    "expo-splash-screen": "~58.0.10",
     "expo-status-bar": "~58.0.3",
+    "expo-task-manager": "~58.0.12",
     "react": "19.3.0",
     "react-native": "0.88.0",
     "react-native-safe-area-context": "~5.10.1",
@@ -16,13 +25,17 @@
   },
   "devDependencies": {
     "@types/react": "~19.3.0",
+    "eslint": "^9.0.0",
+    "eslint-config-expo": "~58.0.4",
     "typescript": "~6.0.3"
   },
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "lint": "expo lint",
+    "test": "node --import ./src/lib/__tests__/register.mjs --test src/lib/__tests__/phase2.test.mjs src/lib/__tests__/phase3.test.mjs src/lib/__tests__/phase3-summary-snapshot.test.mjs src/lib/__tests__/phase4.test.mjs"
   },
   "private": true
 }
