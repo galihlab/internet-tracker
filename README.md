@@ -71,8 +71,8 @@ git push origin v0.1.0
 
 Isi release:
 
-- `app-release-signed.apk` — APK release bertanda tangan, install langsung.
-- `app-debug.apk` — APK debug, install langsung.
+- `app-<abi>-release-signed.apk` — APK release bertanda tangan, satu per arsitektur (`arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64`). Install yang sesuai arsitektur HP (umumnya `arm64-v8a`).
+- `app-<abi>-debug.apk` — APK debug, satu per arsitektur.
 - `app-release-signed.aab` — bundle release bertanda tangan, untuk Play Store.
 
 APK/AAB bertanda tangan hanya dibuat kalau 4 secrets ini ada di
@@ -83,9 +83,8 @@ Settings > Secrets and variables > Actions:
 - `ANDROID_KEY_ALIAS`
 - `ANDROID_KEY_PASSWORD`
 
-Tanpa 4 secrets itu, workflow tetap jalan tapi release hanya berisi
-`app-debug.apk`. Keystore dibuat sekali, di mesinmu sendiri (jangan commit
-ke repo):
+Tanpa 4 secrets itu, workflow tetap jalan tapi release hanya berisi APK debug (`app-<abi>-debug.apk`).
+Keystore dibuat sekali, di mesinmu sendiri (jangan commit ke repo):
 
 ```bash
 keytool -genkeypair -v -keystore release.keystore -alias kuota-tracker \
