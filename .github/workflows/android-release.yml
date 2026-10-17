@@ -44,10 +44,19 @@ jobs:
         env:
           CI: "true"
 
-      - name: build release apk + aab (unsigned)
+      - name: build release apk (unsigned, split per-ABI)
         if: env.HAS_KEYSTORE == 'true'
         working-directory: android
-        run: ./gradlew assembleRelease bundleRelease
+        run: ./gradlew assembleRelease
+
+      - name: build release aab (unsigned, tanpa split)
+        if: env.HAS_KEYSTORE == 'true'
+        working-directory: android
+        # Bundle + splits + shrinkResources tidak bisa jalan bersama:
+        # bundleRelease gagal di buildReleasePreBundle ("Multiple
+        # shrunk-resources files found"). -PnoSplits mematikan blok splits
+        # hanya untuk build bundle (lihat plugins/withAbiSplits.js).
+        run: ./gradlew bundleRelease -PnoSplits=true
 
       - name: build debug apk (fallback, tanpa keystore secrets)
         if: env.HAS_KEYSTORE != 'true'
