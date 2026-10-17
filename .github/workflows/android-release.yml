@@ -94,6 +94,7 @@ jobs:
             android/app/build/outputs/apk/release/app-*-release-signed.apk
             android/app/build/outputs/apk/debug/app-*-debug.apk
             android/app/build/outputs/bundle/release/app-release-signed.aab
+            android/app/build/outputs/mapping/release/mapping.txt
           if-no-files-found: warn
 
       - name: create github release
