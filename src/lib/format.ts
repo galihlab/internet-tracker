@@ -25,3 +25,13 @@ export function formatDateID(d: Date): string {
     year: 'numeric',
   });
 }
+
+/**
+ * Bagian tanggal-jam untuk cap waktu "terakhir diperbarui" (T3.6):
+ * mis. "17 Okt 14:32". Pemanggil mengawali dengan
+ * "Terakhir diperbarui ".
+ */
+export function formatCapWaktu(millis: number): string {
+  const d = new Date(millis);
+  return `${d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} ${d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`;
+}
