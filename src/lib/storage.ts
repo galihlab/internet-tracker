@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { sqliteStore } from './db';
 import { GB } from './format';
 import type { ArchivedPackage, QuotaPackage } from './quota';
 
@@ -216,7 +216,7 @@ function parseSettings(raw: string | null): StoredSettings {
 /** Muat pengaturan tersimpan (atau bawaan bila belum ada). */
 export async function loadSettings(): Promise<StoredSettings> {
   try {
-    const raw = await AsyncStorage.getItem(SETTINGS_KEY);
+    const raw = await sqliteStore.getItem(SETTINGS_KEY);
     return parseSettings(raw);
   } catch {
     // Penyimpanan tidak bisa dibaca — pakai bawaan supaya aplikasi jalan.
@@ -226,5 +226,5 @@ export async function loadSettings(): Promise<StoredSettings> {
 
 /** Simpan seluruh pengaturan. */
 export async function saveSettings(settings: StoredSettings): Promise<void> {
-  await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  await sqliteStore.setItem(SETTINGS_KEY, JSON.stringify(settings));
 }
