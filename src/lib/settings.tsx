@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { sqliteStore } from './db';
 import { defaultSettings, loadSettings, saveSettings, type StoredSettings } from './storage';
 import { resetNotificationState } from './notificationState';
 import type { QuotaPackage } from './quota';
@@ -96,7 +96,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       // Paket baru = siklus notifikasi baru: ambang yang sudah berbunyi
       // pada paket lama tidak boleh menghalangi bunyi pada paket baru
       // (T4.2: setiap ambang hanya berbunyi sekali PER PAKET).
-      await resetNotificationState(AsyncStorage);
+      await resetNotificationState(sqliteStore);
       await patch({
         pkg,
         history: [{ ...settings.pkg, archivedAt: Date.now() }, ...settings.history],
