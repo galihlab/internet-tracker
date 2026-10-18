@@ -1,7 +1,7 @@
 // Status pengiriman notifikasi (T4.2) — ambang / prediksi kritis yang
 // sudah berbunyi, dan tanggal terakhir ringkasan harian terkirim.
 // Store-injected seperti summarySnapshots.ts: pemanggil mengoper
-// AsyncStorage, pengujian Node mengoper toko palsu. TIDAK ada impor
+// sqliteStore (local DB), pengujian Node mengoper toko palsu. TIDAK ada impor
 // React Native / Expo di sini supaya logikanya bisa diuji di Node.
 
 export type NotificationState = {
