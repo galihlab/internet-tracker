@@ -20,7 +20,7 @@
 //   ditandai terkirim bila benar-benar terkirim — bila gagal, dicoba
 //   lagi pada pemeriksaan berikutnya.
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { sqliteStore } from './db';
 import { addAlertEntries } from './alerts';
 import { computeQuota, type QuotaPackage } from './quota';
 import type { DailyBucket } from '../../modules/usage-stats';
@@ -79,7 +79,7 @@ export async function runNotificationChecks(
   const now = data.now ?? new Date();
   const pkg: QuotaPackage = settings.pkg;
   const state = computeQuota(pkg, data.quotaSummary.mobileBytes, now, data.buckets);
-  const notifState = await loadNotificationState(AsyncStorage);
+  const notifState = await loadNotificationState(sqliteStore);
 
   // Ambang 50/80/100 + pengingat prediksi kritis.
   const temuan: NotificationFinding[] = [
@@ -122,7 +122,7 @@ export async function runNotificationChecks(
       await sendLocalNotification(t.title, t.detail);
     }
     await markNotificationsFired(
-      AsyncStorage,
+      sqliteStore,
       temuan.map((t) => t.dedupKey),
     );
     hasil.fired = temuan;
@@ -145,7 +145,7 @@ export async function runNotificationChecks(
     });
     const terkirim = await sendLocalNotification(isi.title, isi.body);
     if (terkirim) {
-      await markDailySummarySent(AsyncStorage, dateISOOf(now));
+      await markDailySummarySent(sqliteStore, dateISOOf(now));
       hasil.summarySent = true;
     }
   }
