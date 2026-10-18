@@ -1,5 +1,5 @@
 // Deteksi notifikasi kuota (T4.2) — logika MURNI, tanpa dependensi
-// React Native / Expo / AsyncStorage, supaya bisa diuji unit dengan
+// React Native / Expo / penyimpanan lokal, supaya bisa diuji unit dengan
 // node:test. Yang diputuskan di sini HANYA "temuan apa yang baru":
 // pengiriman, penyimpanan, dan dedup ada di notificationChecks.ts /
 // notificationState.ts.
