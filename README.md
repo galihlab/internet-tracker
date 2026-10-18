@@ -23,8 +23,8 @@ tersimpan lokal di HP, tanpa server dan tanpa analytics.
 Angka seluler dibaca dari `NetworkStatsManager` (Android) lewat modul
 native lokal `modules/usage-stats/` + izin **Akses penggunaan**.
 Kuota hanya menghitung seluler — Wi-Fi tidak pernah mengurangi kuota.
-Semua data tersimpan di perangkat (AsyncStorage); tidak ada yang
-dikirim ke server mana pun. iOS tidak didukung: Apple tidak membuka
+Semua data tersimpan di perangkat (SQLite local DB, satu file
+`kuota-tracker.db`); tidak ada yang dikirim ke server mana pun. iOS tidak didukung: Apple tidak membuka
 API pemakaian data ke aplikasi pihak ketiga.
 
 ## Jalankan (pengembangan)
@@ -79,7 +79,8 @@ Tanpa secrets, workflow hanya menghasilkan APK debug.
   `usageStats` (jembatan modul native), `dailyBuckets` (riwayat harian),
   `summarySnapshots` (snapshot angka tersimpan), `settings`/`storage`
   (pengaturan), `notify` + `notificationTask` (peringatan latar),
-  `format`, `windows`, `appIcons`, `appUsage`.
+  `format`, `windows`, `appIcons`, `appUsage`, `db` (local DB SQLite —
+  satu backend penyimpanan, migrasi sekali jalan dari AsyncStorage).
 - `src/theme/` — token desain (warna, tipografi, radius, spasi).
 - `modules/usage-stats/` — modul native lokal (Expo Modules API,
   Android saja): baca `NetworkStatsManager` (total perangkat + per-UID
