@@ -4,9 +4,9 @@
 // tersimpan ditampilkan dengan cap waktu "terakhir diperbarui", bukan
 // diganti data contoh secara diam-diam.
 //
-// Modul ini MURNI (tanpa AsyncStorage / React Native) supaya bisa diuji
+// Modul ini MURNI (tanpa penyimpanan / React Native) supaya bisa diuji
 // unit dengan node:test: penyimpanan disuntik lewat `KeyValueStore`
-// (di aplikasi: AsyncStorage). Kunci jendela TIDAK memakai rentang
+// (di aplikasi: sqliteStore dari db.ts). Kunci jendela TIDAK memakai rentang
 // milidetik mentah — jendela terbuka ("sampai sekarang") dikunci oleh
 // tanggal mulai saja, supaya snapshot benar-benar terpakai pada query
 // berikutnya; jendela tertutup dikunci oleh tanggal mulai + tanggal akhir.
@@ -14,7 +14,7 @@
 import type { AppUsage, UsageSummary } from './usageStats';
 import { dateISOOf, startOfDayMillis } from './windows';
 
-/** Kunci blob snapshot ringkasan di AsyncStorage. */
+/** Kunci blob snapshot ringkasan di local DB. */
 export const SUMMARY_SNAPSHOTS_KEY = '@kuota-tracker:summary-snapshots:v1';
 
 /** Snapshot tersimpan: satu ringkasan native terakhir per jendela. */
@@ -25,7 +25,7 @@ export type SummarySnapshot = {
   summary: UsageSummary;
 };
 
-/** Penyimpanan kunci-nilai minimal (AsyncStorage memenuhi bentuk ini). */
+/** Penyimpanan kunci-nilai minimal (sqliteStore memenuhi bentuk ini). */
 export type KeyValueStore = {
   getItem: (key: string) => Promise<string | null>;
   setItem: (key: string, value: string) => Promise<void>;
