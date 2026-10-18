@@ -4,7 +4,7 @@
 // bukan data contoh diam-diam. Data contoh hanya dipakai bila modul
 // native TIDAK tersedia sama sekali (Expo Go) dan tidak pernah disimpan.
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { sqliteStore } from './db';
 import type { DailyAppBucket, DailyBucket } from '../../modules/usage-stats';
 import { mergeDailyAppBuckets, mergeDailyBuckets, sampleDailyBuckets } from './buckets';
 import {
@@ -15,7 +15,7 @@ import {
 } from './usageStats';
 import { dateISOOf, dayWindow, MS_PER_DAY, todayWindow } from './windows';
 
-/** Snapshot bucket harian yang tersimpan di AsyncStorage. */
+/** Snapshot bucket harian yang tersimpan di SQLite (local DB). */
 export type DailyBucketSnapshot = {
   /** Kapan snapshot terakhir berhasil disegarkan (epoch millis). */
   updatedAt: number;
@@ -53,7 +53,7 @@ const APP_BUCKET_LIMIT = 10;
 /** Muat snapshot tersimpan (atau null bila belum ada / rusak). */
 export async function loadDailySnapshot(): Promise<DailyBucketSnapshot | null> {
   try {
-    const raw = await AsyncStorage.getItem(SNAPSHOT_KEY);
+    const raw = await sqliteStore.getItem(SNAPSHOT_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<DailyBucketSnapshot>;
     if (
@@ -82,7 +82,7 @@ export async function loadDailySnapshot(): Promise<DailyBucketSnapshot | null> {
 
 async function saveDailySnapshot(snapshot: DailyBucketSnapshot): Promise<void> {
   try {
-    await AsyncStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snapshot));
+    await sqliteStore.setItem(SNAPSHOT_KEY, JSON.stringify(snapshot));
   } catch {
     // Gagal simpan — data segar tetap dipakai di layar ini; snapshot
     // lama (bila ada) dipakai pada pembukaan berikutnya.
