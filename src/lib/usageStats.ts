@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { sqliteStore } from './db';
 import { GB } from './format';
 import { startOfDayMillis, todayWindow } from './windows';
 import { normalisasiAppUsage, reconcileAppUsage } from './appUsage';
@@ -147,7 +147,7 @@ export async function getUsageSummaryForRange(
   const kunci = summaryWindowKey(start, end, now);
   const device = await getDeviceUsageForRange(start, end);
   if (device.source === 'snapshot') {
-    const tersimpan = await loadSummarySnapshot(AsyncStorage, kunci);
+    const tersimpan = await loadSummarySnapshot(sqliteStore, kunci);
     if (tersimpan) return snapshotToSummary(tersimpan);
     // Snapshot total tanpa per aplikasi (tidak seharusnya terjadi) —
     // kembalikan total snapshot tanpa daftar, bukan data contoh.
@@ -202,7 +202,7 @@ export async function getUsageSummaryForRange(
   };
   // Hanya set lengkap (perangkat + per aplikasi) yang disimpan.
   if (perAppOk) {
-    await saveSummarySnapshot(AsyncStorage, kunci, ringkasan, now);
+    await saveSummarySnapshot(sqliteStore, kunci, ringkasan, now);
   }
   return ringkasan;
 }
@@ -227,7 +227,7 @@ export async function getAppUsageForRange(
   const kunci = summaryWindowKey(start, end, now);
   const device = await getDeviceUsageForRange(start, end);
   if (device.source === 'snapshot') {
-    const tersimpan = await loadSummarySnapshot(AsyncStorage, kunci);
+    const tersimpan = await loadSummarySnapshot(sqliteStore, kunci);
     return tersimpan ? tersimpan.summary.perApp : [];
   }
   if (device.source !== 'native') return [];
@@ -238,7 +238,7 @@ export async function getAppUsageForRange(
     const hasil = reconcileAppUsage(device.mobileBytes, device.wifiBytes, mentah);
     // Query lengkap berhasil — simpan sebagai snapshot jendela ini.
     await saveSummarySnapshot(
-      AsyncStorage,
+      sqliteStore,
       kunci,
       {
         wifiBytes: device.wifiBytes,
@@ -305,7 +305,7 @@ export async function getDeviceUsageForRange(
     } catch {
       // Gagal baca native (misal izin dicabut) -> coba snapshot.
       const tersimpan = await loadSummarySnapshot(
-        AsyncStorage,
+        sqliteStore,
         summaryWindowKey(start, end, now),
       );
       if (tersimpan) {
