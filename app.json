@@ -29,7 +29,8 @@
       "expo-font",
       "expo-splash-screen",
       "expo-background-task",
-      "expo-notifications"
+      "expo-notifications",
+      "expo-sqlite"
     ],
     "scheme": "kuotatracker",
     "slug": "kuota-tracker",
@@ -39,7 +40,7 @@
       "resizeMode": "contain"
     },
     "userInterfaceStyle": "light",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "web": {
       "favicon": "./assets/favicon.png"
     }
