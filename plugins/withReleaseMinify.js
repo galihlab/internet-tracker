@@ -10,15 +10,13 @@
 // keduanya disetel bersama. Baris `def enableShrinkResources = ...`
 // dihapus karena sudah mati setelah baris shrinkResources diganti literal.
 // Idempotent: menjalankan prebuild berulang menghasilkan blok yang sama.
-// Keep rules: tidak ada aturan tambahan yang dibutuhkan. Semua dependensi
-// native sudah membawa consumer ProGuard rules sendiri (expo-modules-core
-// men-keep subclass Module + definition(), react-native men-keep
-// NativeModule/@DoNotStrip/@ReactProp, react-native-svg, expo-notifications,
-// expo-background-task, expo-task-manager, react-native-screens men-keep
-// kelasnya masing-masing). ReflectionHelper milik datetimepicker
-// merefleksi kelas framework Android (bukan kelas aplikasi), jadi R8
-// tidak mempengaruhinya. Modul native UsageStatsModule ter-cover oleh
-// consumer rules expo-modules-core.
+// Keep rules: aturan tambahan DIBUTUHKAN untuk Room + WorkManager
+// (lihat plugins/withRoomKeepRules.js). Klaim lama "tidak ada aturan
+// tambahan yang dibutuhkan" terbukti salah oleh crash startup v1.0.0:
+// R8 mengupas konstruktor yang hanya dipakai refleksi Room sehingga
+// WorkManager gagal membuat WorkDatabase sebelum JS jalan.
+// Dependensi lain (expo-modules-core, react-native, dst.) tetap ter-cover
+// consumer rules-nya masing-masing.
 const { withAppBuildGradle } = require('@expo/config-plugins');
 
 function enableReleaseMinify(contents) {
