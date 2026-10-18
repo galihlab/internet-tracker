@@ -392,6 +392,7 @@ const styles = StyleSheet.create({
   },
   titleItalic: {
     ...typography.displayItalic,
+    color: colors.primary,
   },
   subtitle: {
     ...typography.body,
