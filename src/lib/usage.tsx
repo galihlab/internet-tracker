@@ -43,7 +43,7 @@ export type DailyUsagePoint = {
 
 /**
  * Data harian untuk kartu Penggunaan Hari Ini (T1.7 + T2.2). Dibaca dari
- * bucket harian ter-cache (snapshot AsyncStorage), bukan query
+ * bucket harian ter-cache (snapshot local DB), bukan query
  * per-rentang-hari: kartu tidak pernah memicu query native langsung.
  */
 export type DailyUsage = {
