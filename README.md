@@ -1,36 +1,42 @@
 # Kuota Tracker
 
-Pelacak kuota data seluler Android: sisa kuota, pemakaian per aplikasi,
-prediksi habis, dan peringatan — dari data asli perangkat, semuanya
-tersimpan lokal di HP, tanpa server dan tanpa analytics.
+[![Android release](https://github.com/galihlab/kuota-tracker/actions/workflows/android-release.yml/badge.svg)](https://github.com/galihlab/kuota-tracker/actions/workflows/android-release.yml)
+[![Latest release](https://img.shields.io/github/v/release/galihlab/kuota-tracker)](https://github.com/galihlab/kuota-tracker/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Platform: Android](https://img.shields.io/badge/Platform-Android-3DDC84.svg)]
+[![Expo SDK 58](https://img.shields.io/badge/Expo%20SDK-58-000020.svg)]
 
-## Fitur
+Android mobile-data quota tracker: remaining quota, per-app usage,
+run-out forecast, and alerts — from real on-device data, stored locally
+on the phone. No server, no analytics.
 
-- **Beranda** — sisa kuota paket aktif, pemakaian hari ini, prediksi
-  (cukup / mepet / kritis), dan tiga aplikasi teratas.
-- **Statistik** — grafik batang pemakaian harian (seluler + Wi-Fi),
-  grafik kumulatif terhadap laju ideal paket, rata-rata hari penuh,
-  hari terboros, dan aplikasi teratas per periode.
-- **Aplikasi** — pemakaian per aplikasi dalam jendela paket berjalan.
-- **Pengaturan** — nama, paket aktif + riwayat paket, notifikasi
-  (ambang 50/80/100%, ringkasan harian), dan status izin.
-- **Notifikasi** — peringatan ambang (sekali per paket), peringatan
-  lonjakan pemakaian, pengingat prediksi kritis, dan ringkasan harian
-  lewat tugas terjadwal sistem.
+## Features
 
-## Cara kerja data
+- **Home** — active package remaining quota, today's usage, forecast
+  (enough / tight / critical), and the top three apps.
+- **Statistics** — daily usage bar chart (mobile + Wi-Fi), cumulative
+  usage vs. the package's ideal-pace line, full-day average, heaviest
+  day, and top app per period.
+- **Apps** — per-app usage inside the running package window.
+- **Settings** — name, active package + package history, notifications
+  (50/80/100% thresholds, daily summary), and permission status.
+- **Notifications** — threshold alerts (once per package), usage-spike
+  alerts, critical-forecast reminders, and a daily summary via a
+  system-scheduled background task.
 
-Angka seluler dibaca dari `NetworkStatsManager` (Android) lewat modul
-native lokal `modules/usage-stats/` + izin **Akses penggunaan**.
-Kuota hanya menghitung seluler — Wi-Fi tidak pernah mengurangi kuota.
-Semua data tersimpan di perangkat (SQLite local DB, satu file
-`kuota-tracker.db`); tidak ada yang dikirim ke server mana pun. iOS tidak didukung: Apple tidak membuka
-API pemakaian data ke aplikasi pihak ketiga.
+## How data works
 
-## Jalankan (pengembangan)
+Mobile numbers are read from `NetworkStatsManager` (Android) through the
+local native module `modules/usage-stats/` + the **Usage access**
+permission. Quota counts mobile data only — Wi-Fi never reduces quota.
+Everything is stored on the device (SQLite local DB, a single
+`kuota-tracker.db` file); nothing is sent to any server. iOS is not
+supported: Apple does not expose data-usage APIs to third-party apps.
 
-Butuh Node 22 dan Android SDK. Jalankan lewat dev build (bukan Expo Go
-— Expo Go tidak bisa memuat modul native, jadi hanya tampil data contoh):
+## Run (development)
+
+Requires Node 22 and the Android SDK. Run via a dev build (not Expo Go
+— Expo Go cannot load the native module, so it only shows sample data):
 
 ```bash
 npm install --legacy-peer-deps
@@ -38,81 +44,82 @@ npx expo prebuild --platform android
 npx expo run:android
 ```
 
-Saat pertama dibuka, tap **Buka pengaturan izin**, lalu aktifkan
-Kuota Tracker di Pengaturan sistem › Akses penggunaan. Tanpa izin ini
-tidak ada angka asli yang bisa dibaca.
+On first launch, tap **Open permission settings**, then enable
+Kuota Tracker in System Settings › Usage access. Without this
+permission no real numbers can be read.
 
-## Uji
+## Test
 
 ```bash
-npm test          # unit test logika murni (node:test)
-npx tsc --noEmit  # cek tipe
+npm test          # pure-logic unit tests (node:test)
+npx tsc --noEmit  # typecheck
 npm run lint      # lint
 ```
 
 ## Build & release (GitHub Actions)
 
-Workflow `.github/workflows/android-release.yml` jalan saat push tag
-`v*` (misal `v1.0.1`) atau manual via tab Actions. Hasilnya: GitHub
-Release di tag itu berisi APK release bertanda tangan per arsitektur
-(`app-arm64-v8a-release-signed.apk` untuk kebanyakan HP Android
-modern, plus `armeabi-v7a`, `x86`, `x86_64`) dan `app-release-signed.aab`
-untuk Play Store.
+The `.github/workflows/android-release.yml` workflow runs when a `v*`
+tag is pushed (e.g. `v1.0.4`) or manually via the Actions tab. It
+produces a GitHub Release on that tag containing signed release APKs
+per architecture (`app-arm64-v8a-release-signed.apk` for most modern
+Android phones, plus `armeabi-v7a`, `x86`, `x86_64`) and a signed
+`app-release-signed.aab` for the Play Store.
 
-APK/AAB bertanda tangan hanya dibuat kalau 4 secrets ini ada di repo:
+Signed APKs/AABs are only produced when these 4 secrets exist in the repo:
 
-- `ANDROID_KEYSTORE_BASE64` — keystore release, base64
+- `ANDROID_KEYSTORE_BASE64` — release keystore, base64
 - `ANDROID_KEYSTORE_PASSWORD`
 - `ANDROID_KEY_ALIAS`
 - `ANDROID_KEY_PASSWORD`
 
-Tanpa secrets, workflow hanya menghasilkan APK debug.
+Without the secrets, the workflow only produces a debug APK.
 
-## Struktur
+## Structure
 
 - `src/app/` — Expo Router: `welcome`, `alerts`, `app-detail`,
-  `package-detail`, dan tab `(tabs)/index` (Beranda),
-  `(tabs)/statistik`, `(tabs)/aplikasi`, `(tabs)/pengaturan`.
-- `src/components/` — kartu dan komponen UI (kartu kuota, grafik,
-  daftar aplikasi, tab bar, header).
-- `src/lib/` — logika: `quota` (sisa/proyeksi/status),
-  `usageStats` (jembatan modul native), `dailyBuckets` (riwayat harian),
-  `summarySnapshots` (snapshot angka tersimpan), `settings`/`storage`
-  (pengaturan), `notify` + `notificationTask` (peringatan latar),
-  `format`, `windows`, `appIcons`, `appUsage`, `db` (local DB SQLite —
-  satu backend penyimpanan, migrasi sekali jalan dari AsyncStorage).
-- `src/theme/` — token desain (warna, tipografi, radius, spasi).
-- `modules/usage-stats/` — modul native lokal (Expo Modules API,
-  Android saja): baca `NetworkStatsManager` (total perangkat + per-UID
-  per aplikasi).
-- `plugins/` — config plugin Expo: izin `PACKAGE_USAGE_STATS`,
+  `package-detail`, and the `(tabs)/index` (Home),
+  `(tabs)/statistik` (Statistics), `(tabs)/aplikasi` (Apps),
+  `(tabs)/pengaturan` (Settings) tabs.
+- `src/components/` — UI cards and components (quota card, charts,
+  app lists, tab bar, header).
+- `src/lib/` — logic: `quota` (remaining/forecast/status),
+  `usageStats` (native-module bridge), `dailyBuckets` (daily history),
+  `summarySnapshots` (stored-number snapshots), `settings`/`storage`
+  (settings), `notify` + `notificationTask` (background alerts),
+  `format`, `windows`, `appIcons`, `appUsage`, `db` (SQLite local DB —
+  the single storage backend, one-time migration from AsyncStorage).
+- `src/theme/` — design tokens (colors, typography, radius, spacing).
+- `modules/usage-stats/` — local native module (Expo Modules API,
+  Android only): reads `NetworkStatsManager` (device totals + per-UID
+  per-app).
+- `plugins/` — Expo config plugins: `PACKAGE_USAGE_STATS` permission,
   bundle-in-debug, minify + R8 keep rules (Room/WorkManager),
   ABI splits.
 
-## Catatan implementasi
+## Implementation notes
 
-- Per-aplikasi: `querySummary()` per UID, dipetakan ke nama paket via
-  `PackageManager.getPackagesForUid()`. UID shared (misal layanan
-  Google) bisa menggabungkan beberapa paket — angka per-app adalah
-  perkiraan terbaik yang Android izinkan, bukan audit forensik.
-- `subscriberId: null` dipakai untuk mobile — berlaku untuk
-  langganan default.
-- Angka `NetworkStatsManager` dihitung sejak boot / reset statistik
-  sistem, bukan sejak paket dibeli — makanya kartu paket memakai
-  jendela "sejak paket mulai".
-- Perintah install: pakai `npx expo install ...`, bukan `npm add`,
-  supaya versi sesuai SDK. Resolusi peer yang gagal di `npm install`
-  murni diatasi dengan `npm install --legacy-peer-deps` (konfliknya di
-  `react-native-worklets`, peer opsional dari `expo-modules-core`).
-- Jangan edit `android/` manual — semua kustomisasi Android lewat
-  config plugin di `plugins/` + `app.json`.
+- Per-app: `querySummary()` per UID, mapped to package names via
+  `PackageManager.getPackagesForUid()`. Shared UIDs (e.g. Google
+  services) can merge several packages — per-app numbers are the best
+  estimate Android allows, not a forensic audit.
+- `subscriberId: null` is used for mobile — applies to the default
+  subscription.
+- `NetworkStatsManager` numbers are counted since boot / system stats
+  reset, not since the package was bought — that is why the package
+  card uses a "since package start" window.
+- Install commands: use `npx expo install ...`, not `npm add`, so
+  versions match the SDK. Peer-resolution failures on plain
+  `npm install` are worked around with `npm install --legacy-peer-deps`
+  (the conflict is in `react-native-worklets`, an optional peer of
+  `expo-modules-core`).
+- Never edit `android/` by hand — all Android customization goes
+  through config plugins in `plugins/` + `app.json`.
 
-## Kontribusi
+## Contributing
 
-Issue dan PR dipersilakan. Untuk perubahan perilaku, sertakan bukti:
-hasil `npm test`, `npx tsc --noEmit`, dan `npm run lint`.
+Issues and PRs are welcome. For behavior changes, include evidence:
+`npm test`, `npx tsc --noEmit`, and `npm run lint` output.
 
-## Lisensi
+## License
 
-Belum ada file LICENSE di repo ini — sampai lisensi dipilih, kode
-tetap dengan semua hak dilindungi (all rights reserved).
+MIT — see [LICENSE](LICENSE).
