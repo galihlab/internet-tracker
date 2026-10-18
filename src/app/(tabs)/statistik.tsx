@@ -7,6 +7,7 @@ import PeriodSegmentedControl from '../../components/PeriodSegmentedControl';
 import StatCards from '../../components/StatCards';
 import { useAppIcons } from '../../lib/appIcons';
 import { SYSTEM_ROW_PACKAGE } from '../../lib/appUsage';
+import { buildPolylinePoints } from '../../lib/chartPoints';
 import { formatBytes, formatCapWaktu, formatDateID } from '../../lib/format';
 import { useSettings } from '../../lib/settings';
 import { useUsage } from '../../lib/usage';
@@ -115,18 +116,10 @@ export default function StatistikScreen() {
     };
   };
 
-  const polylineKumulatif = kumulatif
-    .map((p, i) => {
-      const { x, y } = titikKeXY(i, p.kumulatif);
-      return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(' ');
-  const polylineIdeal = kumulatif
-    .map((p, i) => {
-      const { x, y } = titikKeXY(i, p.ideal);
-      return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(' ');
+  const polylineKumulatif = buildPolylinePoints(
+    kumulatif.map((p, i) => titikKeXY(i, p.kumulatif)),
+  );
+  const polylineIdeal = buildPolylinePoints(kumulatif.map((p, i) => titikKeXY(i, p.ideal)));
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
