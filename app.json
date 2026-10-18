@@ -25,6 +25,7 @@
       "./plugins/withBundleInDebug.js",
       "./plugins/withUnsignedRelease.js",
       "./plugins/withReleaseMinify.js",
+      "./plugins/withRoomKeepRules.js",
       "expo-font",
       "expo-splash-screen",
       "expo-background-task",
@@ -38,7 +39,7 @@
       "resizeMode": "contain"
     },
     "userInterfaceStyle": "light",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "web": {
       "favicon": "./assets/favicon.png"
     }
