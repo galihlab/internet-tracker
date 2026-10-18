@@ -1,5 +1,5 @@
 // Deteksi lonjakan pemakaian (T2.6) — logika murni, tanpa dependensi
-// React Native / AsyncStorage, supaya bisa diuji unit dengan node:test.
+// React Native / penyimpanan lokal, supaya bisa diuji unit dengan node:test.
 //
 // Dua aturan (keduanya menghasilkan SATU entri per kejadian):
 //
