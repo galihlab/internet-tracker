@@ -1,11 +1,11 @@
 // Penyimpanan peringatan dalam aplikasi — entri lonjakan (T2.6),
 // ambang kuota + prediksi kritis (T4.2/T4.3) yang tersimpan di
-// AsyncStorage, bertanggal dan berangka. Daftar ini SATU SUMBER dengan
+// local DB (SQLite), bertanggal dan berangka. Daftar ini SATU SUMBER dengan
 // notifikasi (T4.3): setiap notifikasi ambang/prediksi kritis membuat
 // SATU entri di sini, dan lonceng Beranda menghitung entri yang belum
 // dibaca. Notifikasi lokal sendiri dikirim dari notificationChecks.ts.
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { sqliteStore } from './db';
 import type { SpikeFinding } from './spike';
 
 /** Jenis entri peringatan — lonjakan (T2.6) + ambang/prediksi (T4.2). */
@@ -66,7 +66,7 @@ const ALERT_KINDS: readonly string[] = [
 /** Muat peringatan tersimpan (atau [] bila belum ada / rusak). */
 export async function loadAlerts(): Promise<Alert[]> {
   try {
-    const raw = await AsyncStorage.getItem(ALERTS_KEY);
+    const raw = await sqliteStore.getItem(ALERTS_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as Partial<Alert>[];
     if (!Array.isArray(parsed)) return [];
@@ -88,7 +88,7 @@ export async function loadAlerts(): Promise<Alert[]> {
 
 async function saveAlerts(alerts: Alert[]): Promise<void> {
   try {
-    await AsyncStorage.setItem(ALERTS_KEY, JSON.stringify(alerts.slice(0, MAX_ALERTS)));
+    await sqliteStore.setItem(ALERTS_KEY, JSON.stringify(alerts.slice(0, MAX_ALERTS)));
   } catch {
     // Gagal simpan — entri tetap tampil di layar ini; tidak tampil lagi
     // pada pembukaan berikutnya.
