@@ -17,6 +17,12 @@ type SettingsContextValue = {
   settings: StoredSettings;
   /** True setelah pengaturan tersimpan selesai dimuat. */
   loaded: boolean;
+  /**
+   * Waktu simpan terakhir (epoch ms) di sesi ini, null bila belum ada
+   * simpan. Pengaturan menampilkan "Tersimpan ✓" dari nilai ini —
+   * simpan harus TERLIHAT, bukan diam-diam.
+   */
+  savedAt: number | null;
   /** Simpan paket baru (dipakai Beranda dan detail paket). */
   updatePackage: (pkg: QuotaPackage) => Promise<void>;
   /**
@@ -54,6 +60,7 @@ const SettingsContext = createContext<SettingsContextValue | null>(null);
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<StoredSettings>(() => defaultSettings());
   const [loaded, setLoaded] = useState(false);
+  const [savedAt, setSavedAt] = useState<number | null>(null);
 
   useEffect(() => {
     let aktif = true;
@@ -75,6 +82,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       const berikutnya = { ...settings, ...bagian };
       await saveSettings(berikutnya);
       setSettings(berikutnya);
+      setSavedAt(Date.now());
     },
     [settings],
   );
@@ -121,6 +129,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     () => ({
       settings,
       loaded,
+      savedAt,
       updatePackage,
       startNewPackage,
       updateUserName,
@@ -131,6 +140,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     [
       settings,
       loaded,
+      savedAt,
       updatePackage,
       startNewPackage,
       updateUserName,
