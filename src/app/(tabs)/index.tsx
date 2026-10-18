@@ -83,7 +83,7 @@ export default function BerandaScreen() {
                   ? `Data tersimpan · Terakhir diperbarui ${formatCapWaktu(quotaSummary.updatedAt)}`
                   : quotaSummary.source === 'empty'
                     ? 'Belum ada data tersimpan — beri izin akses penggunaan untuk angka asli'
-                    : 'Data contoh — dev build + izin akses penggunaan untuk data asli'}
+                    : 'Data contoh — beri izin akses penggunaan untuk data asli'}
             </Text>
           </View>
         )}
@@ -127,10 +127,6 @@ export default function BerandaScreen() {
               }
               onSeeAll={() => router.push('/aplikasi')}
             />
-            <Text style={styles.footnote}>
-              Angka seluler dibaca dari NetworkStatsManager (Android). Di Expo Go tampil data
-              contoh.
-            </Text>
           </>
         )}
       </ScrollView>
@@ -153,6 +149,7 @@ const styles = StyleSheet.create({
   },
   titleItalic: {
     ...typography.displayItalic,
+    color: colors.primary,
   },
   badge: {
     borderRadius: radius.pill,
@@ -196,11 +193,5 @@ const styles = StyleSheet.create({
   },
   loader: {
     marginTop: 48,
-  },
-  footnote: {
-    ...typography.caption,
-    color: colors.secondary,
-    marginTop: spacing.lg,
-    textAlign: 'center',
   },
 });
