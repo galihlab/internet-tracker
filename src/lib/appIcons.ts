@@ -1,14 +1,14 @@
 // Ikon aplikasi asli (T3.1) — cache di perangkat + hook React.
 //
 // Ikon diambil dari PackageManager lewat modul native (`getAppIcons`),
-// lalu disimpan di AsyncStorage sebagai PNG Base64 96x96. Tidak ada ikon
+// lalu disimpan di SQLite (local DB) sebagai PNG Base64 96x96. Tidak ada ikon
 // yang diunduh dari internet. Aplikasi yang sudah di-uninstall tidak
 // punya ikon native lagi: entri cache terakhirnya dipertahankan (label
 // terakhir yang tercatat + ikon terakhir), dan bila tidak ada cache sama
 // sekali, pemanggil menampilkan ikon generik — bukan logo palsu.
 
 import { useEffect, useState } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { sqliteStore } from './db';
 import type { AppIconInfo } from '../../modules/usage-stats/src/UsageStats.types';
 import type UsageStatsModuleInstance from '../../modules/usage-stats';
 
@@ -39,7 +39,7 @@ function loadNative(): Promise<UsageStatsModuleType | null> {
 
 async function loadCache(): Promise<Record<string, CachedIcon>> {
   try {
-    const raw = await AsyncStorage.getItem(ICON_CACHE_KEY);
+    const raw = await sqliteStore.getItem(ICON_CACHE_KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw) as Record<string, Partial<CachedIcon>>;
     const hasil: Record<string, CachedIcon> = {};
@@ -60,7 +60,7 @@ async function loadCache(): Promise<Record<string, CachedIcon>> {
 
 async function saveCache(cache: Record<string, CachedIcon>): Promise<void> {
   try {
-    await AsyncStorage.setItem(ICON_CACHE_KEY, JSON.stringify(cache));
+    await sqliteStore.setItem(ICON_CACHE_KEY, JSON.stringify(cache));
   } catch {
     // Gagal simpan — ikon tetap tampil dari hasil query native di layar
     // ini; cache lama dipakai pada pembukaan berikutnya.
