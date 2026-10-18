@@ -144,7 +144,7 @@ export default function AppDetailScreen() {
             {!data.sekarang ? (
               <Text style={styles.empty}>
                 {data.tanpaNative
-                  ? 'Data asli tidak tersedia — beri izin akses penggunaan dan pakai dev build (bukan Expo Go) untuk data asli.'
+                  ? 'Data asli tidak tersedia — beri izin akses penggunaan untuk data asli.'
                   : 'Tidak ada pemakaian tercatat untuk aplikasi ini pada jendela paket berjalan.'}
               </Text>
             ) : (
