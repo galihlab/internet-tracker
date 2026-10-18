@@ -1,5 +1,5 @@
 // Logika murni bucket harian (T2.2) — tanpa dependensi React Native /
-// AsyncStorage / modul native, supaya bisa diuji unit dengan node:test.
+// penyimpanan lokal / modul native, supaya bisa diuji unit dengan node:test.
 // Semua fungsi di sini hanya mengolah angka dan tanggal.
 
 import type { DailyAppBucket, DailyBucket } from '../../modules/usage-stats';
