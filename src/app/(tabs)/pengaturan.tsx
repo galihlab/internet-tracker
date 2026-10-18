@@ -7,7 +7,7 @@ import DateTimePicker, {
   type DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
 import PackageHistoryList from '../../components/PackageHistoryList';
-import { formatDateID, formatGB } from '../../lib/format';
+import { formatCapWaktu, formatDateID, formatGB } from '../../lib/format';
 import { operatorLabel, packageLastDay } from '../../lib/quota';
 import { useSettings } from '../../lib/settings';
 import { useUsage } from '../../lib/usage';
@@ -32,7 +32,7 @@ import { colors, layout, radius, spacing, typography } from '../../theme';
  */
 export default function PengaturanScreen() {
   const insets = useSafeAreaInsets();
-  const { settings, updateUserName, updateNotificationOptions, resetWelcomeSeen } =
+  const { settings, savedAt, updateUserName, updateNotificationOptions, resetWelcomeSeen } =
     useSettings();
   const { nativeStatus, refresh, quotaSummary } = useUsage();
   const [nama, setNama] = useState(settings.userName);
@@ -114,6 +114,9 @@ export default function PengaturanScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <Text style={styles.title}>Pengaturan</Text>
+        {savedAt !== null ? (
+          <Text style={styles.savedNote}>Tersimpan ✓ · {formatCapWaktu(savedAt)}</Text>
+        ) : null}
 
         <Text style={styles.sectionTitle}>Profil</Text>
         <View style={styles.card}>
@@ -325,6 +328,11 @@ const styles = StyleSheet.create({
   title: {
     ...typography.title,
     color: colors.ink,
+    marginBottom: spacing.xs,
+  },
+  savedNote: {
+    ...typography.caption,
+    color: colors.primary,
     marginBottom: spacing.lg,
   },
   sectionTitle: {
