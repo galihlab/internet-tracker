@@ -175,7 +175,11 @@ export async function getUsageSummaryForRange(
   let perAppOk = false;
   if (mod) {
     try {
-      const mentah = await mod.getAppUsage(start, end, 10);
+      // Daftar per aplikasi LENGKAP (200, sama seperti tab Aplikasi) —
+      // bukan top-10: limit 10 membuat aplikasi di luar 10 besar hilang
+      // dari Beranda (3 teratas), Statistik (aplikasi teratas), DAN dari
+      // snapshot — rasanya "tidak mendeteksi semua aplikasi".
+      const mentah = await mod.getAppUsage(start, end, 200);
       // Rekonsiliasi (T3.3): jumlah daftar + "Sistem dan lainnya" selalu
       // sama dengan total perangkat untuk jendela yang sama.
       perApp = reconcileAppUsage(device.mobileBytes, device.wifiBytes, mentah);
