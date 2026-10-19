@@ -11,6 +11,10 @@ import {
   normalizeCustomRange,
 } from '../windows.ts';
 
+import {
+  topAppForDay,
+} from '../appUsage.ts';
+
 // Tanggal lokal eksplisit supaya uji tidak bergantung zona waktu mesin.
 const t = (y, m, d, h = 0, min = 0, s = 0) => new Date(y, m - 1, d, h, min, s).getTime();
 const HARI = 24 * 60 * 60 * 1000;
@@ -67,4 +71,21 @@ test('customRangeWindow: satu hari yang sama = jendela hari itu', () => {
   );
   assert.equal(w.start, t(2026, 10, 15));
   assert.equal(w.end, t(2026, 10, 15) + HARI);
+});
+
+test('topAppForDay: aplikasi terbesar pada tanggal itu', () => {
+  const buckets = [
+    { packageName: 'com.a', label: 'A', dateISO: '2026-10-15', bytes: 100, mobileBytes: 60, wifiBytes: 40 },
+    { packageName: 'com.b', label: 'B', dateISO: '2026-10-15', bytes: 300, mobileBytes: 300, wifiBytes: 0 },
+    { packageName: 'com.c', label: 'C', dateISO: '2026-10-16', bytes: 999, mobileBytes: 999, wifiBytes: 0 },
+  ];
+  assert.deepEqual(topAppForDay(buckets, '2026-10-15'), buckets[1]);
+});
+
+test('topAppForDay: null bila tidak ada bucket pada tanggal itu', () => {
+  const buckets = [
+    { packageName: 'com.a', label: 'A', dateISO: '2026-10-15', bytes: 100, mobileBytes: 60, wifiBytes: 40 },
+  ];
+  assert.equal(topAppForDay(buckets, '2026-10-16'), null);
+  assert.equal(topAppForDay([], '2026-10-15'), null);
 });
