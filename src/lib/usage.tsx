@@ -241,16 +241,19 @@ export function UsageProvider({ children }: { children: ReactNode }) {
 
   // `load` mengelola `loading` sendiri (kecuali mode senyap), supaya
   // effect hanya memanggil `load` tanpa setState di dalamnya.
-  const load = useCallback(async (p: Period, q: QuotaPackage, silent = false) => {
+  const load = useCallback(async (p: Period, q: QuotaPackage | null, silent = false) => {
     if (!silent) setLoading(true);
     try {
       // Ringkasan paket memakai JENDELA PAKET (seluler sejak tanggal
       // mulai paket) — bukan jendela periode terpilih (T2.1).
-      const paket = packageWindow(q.startDate);
+      // Tanpa paket aktif, ringkasan paket dilewati (null).
+      const paket = q !== null ? packageWindow(q.startDate) : null;
       const rentangPeriode = periodToRange(p, undefined, customRange);
       const [s, qs, ns, appsPeriode] = await Promise.all([
         getUsageSummary(p, customRange),
-        getUsageSummaryForRange(paket.start, paket.end),
+        paket !== null
+          ? getUsageSummaryForRange(paket.start, paket.end)
+          : Promise.resolve(null),
         getNativeStatus(),
         // Daftar lengkap periode terpilih (T3.2): hingga 200 aplikasi.
         getAppUsageForRange(rentangPeriode.start, rentangPeriode.end, 200),
@@ -318,33 +321,53 @@ export function UsageProvider({ children }: { children: ReactNode }) {
     }
   }, [load, period, pkg, evaluateSpikes]);
 
-  // Pemeriksaan notifikasi (T4.2) saat aplikasi dibuka / data segar
-  // dimuat: ambang 50/80/100 + pengingat prediksi kritis + ringkasan
-  // harian. Kunci ref mencegah pemeriksaan ganda untuk data yang sama
+  // Pemeriksaan notifikasi (T4.2 + pengingat internet v1.3.0) saat
+  // aplikasi dibuka / data segar dimuat: ambang 50/80/100 + pengingat
+  // prediksi kritis + ringkasan harian + batas harian total + batas
+  // per aplikasi + pemakaian malam. Tanpa paket aktif, pemeriksaan
+  // kuota dilewati — pengingat internet tetap jalan dari data harian.
+  // Kunci ref mencegah pemeriksaan ganda untuk data yang sama
   // (mis. render ulang karena alerts berubah). runNotificationChecks
   // sendiri idempotent lewat dedup, jadi kunci ini hanya efisiensi.
   // Bila ada entri baru, daftar peringatan dimuat ulang supaya titik
   // merah lonceng langsung menyala tanpa restart aplikasi.
   const kunciPeriksaTerakhir = useRef<string | null>(null);
   useEffect(() => {
-    if (!quotaSummary || !daily) return;
+    if (!daily) return;
+    const pkg = settings.pkg;
+    const hariIni = daily.last7Days.find((d) => d.isToday);
     const kunci = [
-      settings.pkg.startDate,
-      settings.pkg.quotaBytes,
-      settings.pkg.durationDays,
-      quotaSummary.updatedAt,
+      pkg === null
+        ? 'tanpa-paket'
+        : `${pkg.startDate}|${pkg.quotaBytes}|${pkg.durationDays}`,
+      quotaSummary?.updatedAt ?? 'tanpa-ringkasan',
       daily.updatedAt,
       settings.notificationsEnabled,
       settings.notificationThresholds.join(','),
       settings.dailySummaryEnabled,
       settings.dailySummaryHour,
+      settings.dailyInternetBudgetBytes,
+      settings.perAppBudgets
+        .map((b) => `${b.packageName}:${b.budgetBytes}`)
+        .join(','),
+      settings.overnightAlertEnabled,
     ].join('|');
     if (kunciPeriksaTerakhir.current === kunci) return;
     kunciPeriksaTerakhir.current = kunci;
     void runNotificationChecks({
       settings,
       quotaSummary,
-      daily,
+      daily: {
+        todayMobileBytes: daily.todayMobileBytes,
+        todayWifiBytes: hariIni?.wifiBytes ?? 0,
+        perAppToday: daily.perAppToday.map((b) => ({
+          packageName: b.packageName,
+          label: b.label,
+          bytes: b.bytes,
+        })),
+        source: daily.source,
+        fromSnapshot: daily.fromSnapshot,
+      },
       buckets,
       now: new Date(),
     }).then(async (hasil) => {
