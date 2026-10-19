@@ -54,6 +54,16 @@ export type ArchivedPackage = QuotaPackage & {
   archivedAt: number;
 };
 
+/**
+ * Kunci stabil satu entri riwayat — dipakai hapus / pulihkan, dan
+ * sebagai `key` daftar. Tanggal mulai saja tidak cukup: paket yang
+ * sama bisa diarsipkan dua kali (mis. dihapus lalu dipulihkan lalu
+ * dihapus lagi) dengan `archivedAt` berbeda.
+ */
+export function historyEntryKey(entry: ArchivedPackage): string {
+  return `${entry.startDate}|${entry.archivedAt}`;
+}
+
 export type QuotaStatus = 'aman' | 'mepet' | 'kritis' | 'habis' | 'belum-mulai';
 
 export type QuotaState = {
