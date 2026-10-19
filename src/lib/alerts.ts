@@ -8,12 +8,15 @@
 import { sqliteStore } from './db';
 import type { SpikeFinding } from './spike';
 
-/** Jenis entri peringatan — lonjakan (T2.6) + ambang/prediksi (T4.2). */
+/** Jenis entri peringatan — lonjakan (T2.6) + ambang/prediksi (T4.2) + pengingat internet (v1.3.0). */
 export type AlertKind =
   | 'lonjakan-harian'
   | 'aplikasi-dominan'
   | 'ambang-kuota'
-  | 'prediksi-kritis';
+  | 'prediksi-kritis'
+  | 'batas-harian'
+  | 'batas-aplikasi'
+  | 'pemakaian-malam';
 
 export type Alert = {
   /**
@@ -61,6 +64,9 @@ const ALERT_KINDS: readonly string[] = [
   'aplikasi-dominan',
   'ambang-kuota',
   'prediksi-kritis',
+  'batas-harian',
+  'batas-aplikasi',
+  'pemakaian-malam',
 ];
 
 /** Muat peringatan tersimpan (atau [] bila belum ada / rusak). */
