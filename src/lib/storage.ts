@@ -14,6 +14,11 @@ export type StoredSettings = {
   /** Nama pengguna untuk sapaan; string kosong berarti belum diisi. */
   userName: string;
   /**
+   * Foto profil (data URI JPEG base64, dipangkas 1:1) — tampil sebagai
+   * avatar di Beranda. String kosong berarti belum diisi.
+   */
+  profilePhoto: string;
+  /**
    * Notifikasi kuota aktif atau tidak (T4.1). Mematikan ini menonaktifkan
    * jalur T4.2 (peringatan ambang, pengingat prediksi kritis, ringkasan
    * harian). Peringatan lonjakan T2.6 TIDAK ikut mati — itu entri daftar
@@ -63,6 +68,7 @@ export function defaultSettings(): StoredSettings {
     },
     history: [],
     userName: '',
+    profilePhoto: '',
     notificationsEnabled: true,
     notificationThresholds: [...NOTIFICATION_THRESHOLD_OPTIONS],
     dailySummaryEnabled: true,
@@ -185,6 +191,8 @@ function parseSettings(raw: string | null): StoredSettings {
       },
       history,
       userName: typeof parsed.userName === 'string' ? parsed.userName : fallback.userName,
+      profilePhoto:
+        typeof parsed.profilePhoto === 'string' ? parsed.profilePhoto : fallback.profilePhoto,
       notificationsEnabled:
         typeof parsed.notificationsEnabled === 'boolean'
           ? parsed.notificationsEnabled
