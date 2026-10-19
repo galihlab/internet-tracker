@@ -11,6 +11,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import HomeHeader from '../../components/HomeHeader';
+import InternetTodayCard from '../../components/InternetTodayCard';
 import MainQuotaCard from '../../components/MainQuotaCard';
 import PredictionCard from '../../components/PredictionCard';
 import TodayUsageCard from '../../components/TodayUsageCard';
@@ -23,14 +24,12 @@ import { openUsageAccessSettings } from '../../lib/usageStats';
 import { colors, layout, radius, spacing, typography } from '../../theme';
 
 /**
- * Beranda Fase 1: header sapaan (T1.5), kartu utama sisa kuota (T1.6),
- * kartu Penggunaan Hari Ini (T1.7), kartu Prediksi Kuota (T1.8), dan
- * ringkasan tiga aplikasi teratas (T1.9). Beranda selalu menampilkan
- * keadaan paket saat ini — kontrol periode pindah ke Statistik (T1.10).
- *
- * Satu sumber kebenaran angka (prinsip 1): semua kartu memakai
- * `quotaSummary.mobileBytes` yang sama. Kuota hanya menghitung seluler
- * (prinsip 2): Wi-Fi tidak pernah mengurangi kuota.
+ * Beranda (v1.2.0, internet-first): header sapaan, kartu utama TOTAL
+ * internet hari ini (seluler + Wi-Fi), seksi "Paket seluler" (kartu sisa
+ * kuota + prediksi), grafik 7 hari, dan ringkasan tiga aplikasi teratas
+ * menurut total internet. Kuota hanya menghitung seluler (prinsip 2):
+ * Wi-Fi tidak pernah mengurangi kuota — tapi angka utama Beranda adalah
+ * internet, bukan kuota.
  */
 export default function BerandaScreen() {
   const insets = useSafeAreaInsets();
@@ -64,7 +63,7 @@ export default function BerandaScreen() {
         />
 
         <Text style={styles.title}>
-          Kuotamu,{'\n'}
+          Internetmu,{'\n'}
           <Text style={styles.titleItalic}>Tetap Terkendali.</Text>
         </Text>
 
@@ -106,20 +105,22 @@ export default function BerandaScreen() {
           <ActivityIndicator size="large" color={colors.primary} style={styles.loader} />
         ) : (
           <>
+            <InternetTodayCard daily={daily} />
+            <Text style={styles.sectionTitle}>Paket seluler</Text>
             <MainQuotaCard
               pkg={pkg}
               state={quotaState}
               onPress={() => router.push('/package-detail')}
             />
-            <TodayUsageCard daily={daily} />
             <PredictionCard
               state={quotaState}
               daily={daily}
               onPress={() => router.push('/statistik')}
             />
+            <TodayUsageCard daily={daily} />
             <TopAppsSummary
               perApp={quotaSummary?.perApp ?? []}
-              mobileTotalBytes={quotaSummary?.mobileBytes ?? 0}
+              totalBytes={quotaSummary?.totalBytes ?? 0}
               onPressApp={(app) =>
                 router.push({
                   pathname: '/app-detail',
@@ -151,6 +152,11 @@ const styles = StyleSheet.create({
   titleItalic: {
     ...typography.displayItalic,
     color: colors.primary,
+  },
+  sectionTitle: {
+    ...typography.heading,
+    color: colors.ink,
+    marginTop: spacing.xl,
   },
   badge: {
     borderRadius: radius.pill,
