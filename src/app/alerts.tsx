@@ -21,6 +21,12 @@ function labelJenis(alert: Alert): string {
         : 'Ambang kuota';
     case 'prediksi-kritis':
       return 'Prediksi kritis';
+    case 'batas-harian':
+      return 'Batas harian internet';
+    case 'batas-aplikasi':
+      return 'Batas harian aplikasi';
+    case 'pemakaian-malam':
+      return 'Pemakaian malam';
   }
 }
 
