@@ -21,6 +21,7 @@
     "plugins": [
       "expo-router",
       "./plugins/withUsageStatsPermission.js",
+      "./plugins/withQueryAllPackages.js",
       "./plugins/withAbiSplits.js",
       "./plugins/withBundleInDebug.js",
       "./plugins/withUnsignedRelease.js",
@@ -40,7 +41,7 @@
       "resizeMode": "contain"
     },
     "userInterfaceStyle": "light",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "web": {
       "favicon": "./assets/favicon.png"
     }
