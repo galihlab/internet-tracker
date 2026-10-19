@@ -1,20 +1,22 @@
 # Internet Tracker
 
-[![Android release](https://github.com/galihlab/internet-tracker/actions/workflows/android-release.yml/badge.svg)](https://github.com/galihlab/internet-tracker/actions/workflows/android-release.yml)
-[![Latest release](https://img.shields.io/github/v/release/galihlab/internet-tracker)](https://github.com/galihlab/internet-tracker/releases)
+[![Android release](https://github.com/galihlab/kuota-tracker/actions/workflows/android-release.yml/badge.svg)](https://github.com/galihlab/kuota-tracker/actions/workflows/android-release.yml)
+[![Latest release](https://img.shields.io/github/v/release/galihlab/kuota-tracker)](https://github.com/galihlab/kuota-tracker/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Platform: Android](https://img.shields.io/badge/Platform-Android-3DDC84.svg)]
 [![Expo SDK 58](https://img.shields.io/badge/Expo%20SDK-58-000020.svg)]
 
-Internet Tracker — total internet usage (mobile + Wi-Fi), per-app stats, mobile-quota tracking, run-out forecast, and alerts — from real on-device data, stored locally on the phone. No server, no analytics.
+Android mobile-data quota tracker: remaining quota, per-app usage,
+run-out forecast, and alerts — from real on-device data, stored locally
+on the phone. No server, no analytics.
 
 ## Features
 
 - **Home** — total internet today (mobile + Wi-Fi) with the split,
   yesterday's total for reference, the 7-day stacked chart, the top
   three apps by total internet, and a "Paket seluler" section (remaining
-  quota + forecast). Your profile photo (set in Settings) shows as the
-  header avatar.
+  quota + forecast, or an add-package card when no package is active).
+  Your profile photo (set in Settings) shows as the header avatar.
 - **Statistics** — daily usage bar chart (mobile + Wi-Fi stacked; tap a
   bar for that day's detail: mobile, Wi-Fi, total, top app), cumulative
   total-internet line, cumulative mobile vs. the package's ideal-pace
@@ -24,12 +26,18 @@ Internet Tracker — total internet usage (mobile + Wi-Fi), per-app stats, mobil
 - **Apps** — per-app usage inside the running package window, with the
   same period picker (today / 7 / 30 days / custom range).
 - **Settings** — profile (photo + name, saved per section), active
-  package + package history, notifications (50/80/100% thresholds,
-  daily summary), threshold-fired status for the running package, and
-  permission status.
+  package + package history (restore an archived package, delete one
+  history entry, or clear all history; delete the active package to run
+  without a package), notifications (50/80/100% thresholds, daily
+  summary), internet reminders (daily total-internet budget, overnight
+  usage alert, per-app budgets set from an app's detail screen),
+  threshold-fired status for the running package, and permission status.
 - **Notifications** — threshold alerts (once per package), usage-spike
-  alerts, critical-forecast reminders, and a daily summary via a
-  system-scheduled background task.
+  alerts, critical-forecast reminders, internet reminders (daily
+  total-internet budget, per-app daily budget, overnight usage
+  00:00–06:00 ≥ 500 MB reported the next morning), and a daily summary
+  (total internet today + mobile/Wi-Fi split + remaining quota, if a
+  package is active) via a system-scheduled background task.
 - **Onboarding** — welcome carousel with the app logo, first-package
   setup, and usage-access permission.
 
@@ -117,8 +125,8 @@ Without the secrets, the workflow only produces a debug APK.
 - `subscriberId: null` is used for mobile — applies to the default
   subscription.
 - Quota math is mobile-only by design — Wi-Fi never counts against
-  the package. Wi-Fi is part of the total-internet numbers on Home
-  and in the Statistics chart, so the split is visible.
+  the package. Wi-Fi today is shown as an info line on the Home card
+  (and in the Statistics chart), so the split is visible.
 - `NetworkStatsManager` numbers are counted since boot / system stats
   reset, not since the package was bought — that is why the package
   card uses a "since package start" window.
