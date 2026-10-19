@@ -35,14 +35,23 @@ export default function BerandaScreen() {
   const insets = useSafeAreaInsets();
   const { settings } = useSettings();
   const pkg = settings.pkg;
-  const { quotaSummary, daily, buckets, unreadAlerts, nativeStatus, loading, refreshing, refresh } = useUsage();
+  const { summary, quotaSummary, daily, buckets, unreadAlerts, nativeStatus, loading, refreshing, refresh } = useUsage();
 
   // Kuota dihitung dari SELULER saja — bukan total gabungan seluler+Wi-Fi.
   // Bucket harian diteruskan untuk prediksi berbobot (T2.3).
+  // Tanpa paket aktif, tidak ada kartu kuota (quotaState null).
   const quotaState = useMemo(
-    () => (quotaSummary ? computeQuota(pkg, quotaSummary.mobileBytes, new Date(), buckets) : null),
+    () =>
+      pkg && quotaSummary
+        ? computeQuota(pkg, quotaSummary.mobileBytes, new Date(), buckets)
+        : null,
     [pkg, quotaSummary, buckets],
   );
+
+  // Sumber angka lencana + aplikasi teratas: jendela paket bila ada
+  // paket, jendela periode terpilih (bawaan: hari ini) bila tanpa paket.
+  const sumber = pkg ? quotaSummary : summary;
+  const dataSiap = !loading && (pkg ? quotaSummary !== null : summary !== null);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -67,21 +76,21 @@ export default function BerandaScreen() {
           <Text style={styles.titleItalic}>Tetap Terkendali.</Text>
         </Text>
 
-        {quotaSummary && (
+        {sumber && (
           <View
             style={[
               styles.badge,
-              quotaSummary.source === 'sample' || quotaSummary.source === 'empty'
+              sumber.source === 'sample' || sumber.source === 'empty'
                 ? styles.badgeSample
                 : styles.badgeNative,
             ]}
           >
             <Text style={styles.badgeText}>
-              {quotaSummary.source === 'native'
+              {sumber.source === 'native'
                 ? 'Data asli dari perangkat'
-                : quotaSummary.source === 'snapshot'
-                  ? `Data tersimpan · Terakhir diperbarui ${formatCapWaktu(quotaSummary.updatedAt)}`
-                  : quotaSummary.source === 'empty'
+                : sumber.source === 'snapshot'
+                  ? `Data tersimpan · Terakhir diperbarui ${formatCapWaktu(sumber.updatedAt)}`
+                  : sumber.source === 'empty'
                     ? 'Belum ada data tersimpan — beri izin akses penggunaan untuk angka asli'
                     : 'Data contoh — beri izin akses penggunaan untuk data asli'}
             </Text>
@@ -91,7 +100,7 @@ export default function BerandaScreen() {
         {nativeStatus.available && !nativeStatus.granted && (
           <View style={styles.permissionBox}>
             <Text style={styles.permissionText}>
-              {quotaSummary?.fromSnapshot
+              {sumber?.fromSnapshot
                 ? 'Izin akses penggunaan belum diberikan — angka memakai data terakhir yang tersimpan.'
                 : 'Izin akses penggunaan belum diberikan — belum ada data tersimpan.'}
             </Text>
@@ -101,26 +110,45 @@ export default function BerandaScreen() {
           </View>
         )}
 
-        {loading || !quotaState ? (
+        {!dataSiap ? (
           <ActivityIndicator size="large" color={colors.primary} style={styles.loader} />
         ) : (
           <>
             <InternetTodayCard daily={daily} />
             <Text style={styles.sectionTitle}>Paket seluler</Text>
-            <MainQuotaCard
-              pkg={pkg}
-              state={quotaState}
-              onPress={() => router.push('/package-detail')}
-            />
-            <PredictionCard
-              state={quotaState}
-              daily={daily}
-              onPress={() => router.push('/statistik')}
-            />
+            {pkg && quotaState ? (
+              <>
+                <MainQuotaCard
+                  pkg={pkg}
+                  state={quotaState}
+                  onPress={() => router.push('/package-detail')}
+                />
+                <PredictionCard
+                  state={quotaState}
+                  daily={daily}
+                  onPress={() => router.push('/statistik')}
+                />
+              </>
+            ) : (
+              <View style={styles.noPackageCard}>
+                <Text style={styles.noPackageText}>
+                  Belum ada paket aktif. Internet Tracker tetap memantau total internet,
+                  per aplikasi, dan pengingat — tapi tanpa paket, tidak ada sisa kuota
+                  atau prediksi habis yang bisa ditampilkan.
+                </Text>
+                <Pressable
+                  style={styles.noPackageButton}
+                  onPress={() => router.push('/package-detail')}
+                  hitSlop={4}
+                >
+                  <Text style={styles.noPackageButtonText}>Tambah paket</Text>
+                </Pressable>
+              </View>
+            )}
             <TodayUsageCard daily={daily} />
             <TopAppsSummary
-              perApp={quotaSummary?.perApp ?? []}
-              totalBytes={quotaSummary?.totalBytes ?? 0}
+              perApp={sumber?.perApp ?? []}
+              totalBytes={sumber?.totalBytes ?? 0}
               onPressApp={(app) =>
                 router.push({
                   pathname: '/app-detail',
@@ -200,5 +228,28 @@ const styles = StyleSheet.create({
   },
   loader: {
     marginTop: 48,
+  },
+  noPackageCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    marginTop: spacing.md,
+  },
+  noPackageText: {
+    ...typography.body,
+    color: colors.ink,
+  },
+  noPackageButton: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.pill,
+    paddingVertical: spacing.sm,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: spacing.md,
+  },
+  noPackageButtonText: {
+    ...typography.label,
+    color: colors.onPrimary,
   },
 });
