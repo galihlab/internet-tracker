@@ -3,24 +3,30 @@ import {
   Animated,
   AppState,
   FlatList,
+  Image,
   ImageBackground,
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import Svg, { Circle } from 'react-native-svg';
-import { formatCapWaktu, formatDateID, formatGB } from '../lib/format';
+import DateTimePicker, {
+  type DateTimePickerEvent,
+} from '@react-native-community/datetimepicker';
+import { formatCapWaktu, formatDateID, formatGB, GB } from '../lib/format';
 import { computeQuota, packageLastDay } from '../lib/quota';
 import { useSettings } from '../lib/settings';
 import { useUsage } from '../lib/usage';
 import { openUsageAccessSettings } from '../lib/usageStats';
+import { dateISOOf } from '../lib/windows';
 import { colors, radius, spacing, typography } from '../theme';
 
-const PAGE_COUNT = 4;
+const PAGE_COUNT = 6;
 
 const PROMISES = [
   {
@@ -120,11 +126,51 @@ function SignalIcon() {
 export default function WelcomeScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const { settings, markWelcomeSeen } = useSettings();
+  const { settings, markWelcomeSeen, updatePackage } = useSettings();
   const pkg = settings.pkg;
   const { quotaSummary, nativeStatus, buckets, refresh } = useUsage();
   const [page, setPage] = useState(0);
   const listRef = useRef<FlatList<number>>(null);
+
+  // Form paket onboarding (halaman 4): draf lokal, disimpan lewat
+  // tombol — bukan onBlur — supaya jelas kapan paket tersimpan.
+  const [namaPaket, setNamaPaket] = useState(pkg.name);
+  const [kuotaGB, setKuotaGB] = useState(String(Math.round(pkg.quotaBytes / GB)));
+  const [durasiHari, setDurasiHari] = useState(String(pkg.durationDays));
+  const [tanggalMulai, setTanggalMulai] = useState(new Date(pkg.startDate));
+  const [tampilPilihTanggal, setTampilPilihTanggal] = useState(false);
+  const [errorPaket, setErrorPaket] = useState<string | null>(null);
+  const [menyimpanPaket, setMenyimpanPaket] = useState(false);
+
+  const simpanPaketOnboarding = () => {
+    const kuota = Number(kuotaGB.replace(',', '.'));
+    const durasi = Number(durasiHari);
+    if (!Number.isFinite(kuota) || kuota <= 0) {
+      setErrorPaket('Isi kuota dengan angka lebih dari 0 (GB).');
+      return;
+    }
+    if (!Number.isInteger(durasi) || durasi <= 0) {
+      setErrorPaket('Isi durasi dengan jumlah hari bulat lebih dari 0.');
+      return;
+    }
+    setErrorPaket(null);
+    setMenyimpanPaket(true);
+    updatePackage({
+      ...pkg,
+      name: namaPaket.trim() || pkg.name,
+      quotaBytes: kuota * GB,
+      startDate: dateISOOf(tanggalMulai),
+      durationDays: durasi,
+    })
+      .then(() => keHalaman(PAGE_COUNT - 1))
+      .catch(() => setErrorPaket('Gagal menyimpan paket — coba lagi.'))
+      .finally(() => setMenyimpanPaket(false));
+  };
+
+  const pilihTanggalMulai = (_event: DateTimePickerEvent, dipilih?: Date) => {
+    setTampilPilihTanggal(false);
+    if (dipilih) setTanggalMulai(dipilih);
+  };
 
   // Transisi welcome (T4.4, Animated bawaan RN): kartu kaca naik +
   // memudar masuk sekali saat layar tampil; footer (titik + tombol)
@@ -193,6 +239,11 @@ export default function WelcomeScreen() {
       return (
         <View style={[styles.page, { width }]}>
           <View style={styles.pageTop}>
+            <Image
+              source={require('../../assets/icon.png')}
+              style={styles.logo}
+              accessibilityLabel="Logo Kuota Tracker"
+            />
             <View style={styles.chip}>
               <SignalIcon />
               <Text style={styles.chipText}>Kuota, Terkendali</Text>
@@ -253,15 +304,85 @@ export default function WelcomeScreen() {
       );
     }
 
-    const janji = PROMISES[index - 1];
-    return (
-      <View style={[styles.promisePage, { width }]}>
-        <View style={styles.promiseIcon}>
-          <Text style={styles.promiseIconText}>{index + 1}</Text>
+    if (index === PAGE_COUNT - 2) {
+      // Halaman setup paket (5): isi paket pertama di sini — bukan
+      // setelah masuk Beranda — supaya kartu kuota langsung berangka.
+      return (
+        <View style={[styles.formPage, { width }]}>
+          <Text style={styles.promiseTitle}>Atur paket pertamamu</Text>
+          <Text style={styles.promiseDesc}>
+            Isi paket yang sedang berjalan. Bisa diubah lagi kapan pun di Pengaturan.
+          </Text>
+          <Text style={styles.formLabel}>Nama paket</Text>
+          <TextInput
+            style={styles.formInput}
+            value={namaPaket}
+            onChangeText={setNamaPaket}
+            placeholder="Kuota Utama"
+            placeholderTextColor={colors.secondary}
+            maxLength={40}
+            accessibilityLabel="Nama paket"
+          />
+          <Text style={styles.formLabel}>Kuota (GB)</Text>
+          <TextInput
+            style={styles.formInput}
+            value={kuotaGB}
+            onChangeText={setKuotaGB}
+            placeholder="13"
+            placeholderTextColor={colors.secondary}
+            keyboardType="decimal-pad"
+            accessibilityLabel="Kuota dalam GB"
+          />
+          <Text style={styles.formLabel}>Durasi (hari)</Text>
+          <TextInput
+            style={styles.formInput}
+            value={durasiHari}
+            onChangeText={setDurasiHari}
+            placeholder="5"
+            placeholderTextColor={colors.secondary}
+            keyboardType="number-pad"
+            accessibilityLabel="Durasi paket dalam hari"
+          />
+          <Text style={styles.formLabel}>Tanggal mulai</Text>
+          <Pressable
+            style={styles.formInput}
+            onPress={() => setTampilPilihTanggal(true)}
+            accessibilityRole="button"
+            accessibilityLabel={`Tanggal mulai paket, saat ini ${formatDateID(tanggalMulai)}`}
+          >
+            <Text style={styles.formInputText}>{formatDateID(tanggalMulai)}</Text>
+          </Pressable>
+          {tampilPilihTanggal ? (
+            <DateTimePicker value={tanggalMulai} mode="date" onChange={pilihTanggalMulai} />
+          ) : null}
+          {errorPaket ? <Text style={styles.formError}>{errorPaket}</Text> : null}
+          <Pressable
+            style={[styles.button, styles.formButton]}
+            onPress={simpanPaketOnboarding}
+            hitSlop={4}
+            disabled={menyimpanPaket}
+          >
+            <Text style={styles.buttonText}>
+              {menyimpanPaket ? 'Menyimpan…' : 'Simpan paket & lanjut'}
+            </Text>
+          </Pressable>
         </View>
-        <Text style={styles.promiseTitle}>{janji.title}</Text>
-        <Text style={styles.promiseDesc}>{janji.desc}</Text>
-        {index === PAGE_COUNT - 1 ? (
+      );
+    }
+
+    if (index === PAGE_COUNT - 1) {
+      // Halaman izin (6): khusus izin akses penggunaan — bukan lagi
+      // menumpang di halaman janji terakhir.
+      return (
+        <View style={[styles.promisePage, { width }]}>
+          <View style={styles.promiseIcon}>
+            <Text style={styles.promiseIconText}>✓</Text>
+          </View>
+          <Text style={styles.promiseTitle}>Izin akses penggunaan</Text>
+          <Text style={styles.promiseDesc}>
+            Untuk angka asli, Kuota Tracker perlu izin akses penggunaan. Izin ini hanya
+            dipakai membaca pemakaian datamu di perangkat ini.
+          </Text>
           <View style={styles.permissionBox}>
             {!nativeStatus.available ? (
               <Text style={styles.permissionText}>
@@ -274,13 +395,23 @@ export default function WelcomeScreen() {
               </Text>
             ) : (
               <Text style={styles.permissionText}>
-                Untuk angka asli, Kuota Tracker perlu izin akses penggunaan. Izin ini hanya
-                dipakai membaca pemakaian datamu di perangkat ini. Kamu bisa kembali ke sini
-                setelah memberi izin; statusnya dicek ulang otomatis.
+                Kamu bisa kembali ke sini setelah memberi izin; statusnya dicek ulang
+                otomatis.
               </Text>
             )}
           </View>
-        ) : null}
+        </View>
+      );
+    }
+
+    const janji = PROMISES[index - 1];
+    return (
+      <View style={[styles.promisePage, { width }]}>
+        <View style={styles.promiseIcon}>
+          <Text style={styles.promiseIconText}>{index + 1}</Text>
+        </View>
+        <Text style={styles.promiseTitle}>{janji.title}</Text>
+        <Text style={styles.promiseDesc}>{janji.desc}</Text>
       </View>
     );
   };
@@ -294,7 +425,7 @@ export default function WelcomeScreen() {
       <View style={[styles.shell, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <FlatList
           ref={listRef}
-          data={[0, 1, 2, 3]}
+          data={[0, 1, 2, 3, 4, 5]}
           keyExtractor={(i) => String(i)}
           horizontal
           pagingEnabled
@@ -325,6 +456,10 @@ export default function WelcomeScreen() {
           {page === 0 ? (
             <Pressable style={styles.button} onPress={selesai} hitSlop={4}>
               <Text style={styles.buttonText}>Lihat Penggunaan →</Text>
+            </Pressable>
+          ) : page === PAGE_COUNT - 2 ? (
+            <Pressable style={styles.skip} onPress={() => keHalaman(PAGE_COUNT - 1)} hitSlop={4}>
+              <Text style={styles.skipText}>Lewati dulu</Text>
             </Pressable>
           ) : page === PAGE_COUNT - 1 ? (
             <>
@@ -368,6 +503,12 @@ const styles = StyleSheet.create({
   },
   pageTop: {
     alignItems: 'center',
+  },
+  logo: {
+    width: 72,
+    height: 72,
+    borderRadius: 18,
+    marginBottom: spacing.lg,
   },
   chip: {
     flexDirection: 'row',
@@ -574,5 +715,38 @@ const styles = StyleSheet.create({
     color: colors.secondary,
     textAlign: 'center',
     paddingVertical: spacing.lg,
+  },
+  formPage: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xxxl,
+    paddingBottom: spacing.xxxl,
+  },
+  formLabel: {
+    ...typography.label,
+    color: colors.ink,
+    marginTop: spacing.lg,
+  },
+  formInput: {
+    ...typography.body,
+    color: colors.ink,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    minHeight: 44,
+    marginTop: spacing.xs,
+  },
+  formInputText: {
+    ...typography.body,
+    color: colors.ink,
+  },
+  formError: {
+    ...typography.caption,
+    color: colors.critical,
+    marginTop: spacing.sm,
+  },
+  formButton: {
+    marginTop: spacing.xl,
   },
 });
