@@ -17,6 +17,11 @@ import {
 } from '../notifications.ts';
 import { historyEntryKey } from '../quota.ts';
 import { defaultSettings, parseSettings } from '../settingsParse.ts';
+import {
+  claimFiredKey,
+  loadNotificationState,
+  resetNotificationState,
+} from '../notificationState.ts';
 
 // Tanggal lokal eksplisit supaya uji tidak bergantung zona waktu mesin.
 const t = (y, m, d, h = 0, min = 0, s = 0) => new Date(y, m - 1, d, h, min, s);
@@ -215,4 +220,63 @@ test('parse: blob rusak / bidang pengingat tidak valid -> bawaan', () => {
   assert.deepEqual(parsed.perAppBudgets, []);
   assert.equal(parsed.overnightAlertEnabled, true);
   assert.equal(parseSettings('bukan json{').pkg?.name, 'Kuota Utama');
+});
+
+/* Klaim atomik dedup notifikasi (perbaikan notifikasi ganda v1.3.1) */
+
+/** Toko palsu: getItem/setItem + claimKey atomik via Set (sinkron). */
+function tokoPalsu({ atomik = true } = {}) {
+  const kv = new Map();
+  const klaim = new Set();
+  const toko = {
+    getItem: async (k) => (kv.has(k) ? kv.get(k) : null),
+    setItem: async (k, v) => {
+      kv.set(k, v);
+    },
+  };
+  if (atomik) {
+    toko.claimKey = async (k) => {
+      if (klaim.has(k)) return false;
+      klaim.add(k);
+      return true;
+    };
+    toko.clearClaimKeys = async (prefix) => {
+      for (const k of [...klaim]) if (k.startsWith(prefix)) klaim.delete(k);
+    };
+  }
+  return toko;
+}
+
+test('klaim: dua pelari bersamaan hanya satu pemenang', async () => {
+  const toko = tokoPalsu();
+  const [a, b] = await Promise.all([
+    claimFiredKey(toko, 'pemakaian-malam:2026-10-20'),
+    claimFiredKey(toko, 'pemakaian-malam:2026-10-20'),
+  ]);
+  assert.equal([a, b].filter(Boolean).length, 1, 'tepat satu pemenang');
+  const state = await loadNotificationState(toko);
+  assert.ok(state.firedIds.includes('pemakaian-malam:2026-10-20'));
+  // Klaim kedua berurutan juga ditolak.
+  assert.equal(await claimFiredKey(toko, 'pemakaian-malam:2026-10-20'), false);
+});
+
+test('klaim: kunci yang sudah ada di firedIds (riwayat lama) langsung ditolak', async () => {
+  const toko = tokoPalsu();
+  await toko.setItem(
+    '@kuota-tracker:notification-state:v1',
+    JSON.stringify({ firedIds: ['ambang:80:lama'], lastDailySummaryDateISO: null }),
+  );
+  assert.equal(await claimFiredKey(toko, 'ambang:80:lama'), false);
+});
+
+test('klaim: tanpa claimKey atomik tetap bisa klaim (fallback)', async () => {
+  const toko = tokoPalsu({ atomik: false });
+  assert.equal(await claimFiredKey(toko, 'batas-harian:2026-10-20'), true);
+});
+
+test('reset: membersihkan klaim sehingga kunci bisa diklaim ulang', async () => {
+  const toko = tokoPalsu();
+  assert.equal(await claimFiredKey(toko, 'batas-harian:2026-10-20'), true);
+  await resetNotificationState(toko);
+  assert.equal(await claimFiredKey(toko, 'batas-harian:2026-10-20'), true);
 });
