@@ -25,13 +25,19 @@
 import { formatBytes, formatDateID, formatGB } from './format';
 import type { Forecast } from './forecast';
 import type { QuotaPackage } from './quota';
-import { dateISOOf } from './windows';
+import type { PerAppBudget } from './storage';
+import { dateISOOf, startOfDayMillis } from './windows';
 
 /** Ambang peringatan yang tersedia — sama dengan opsi Pengaturan. */
 export const NOTIFICATION_THRESHOLDS = [50, 80, 100] as const;
 
 /** Jenis temuan notifikasi (dipetakan ke jenis entri peringatan T4.3). */
-export type NotificationFindingKind = 'ambang-kuota' | 'prediksi-kritis';
+export type NotificationFindingKind =
+  | 'ambang-kuota'
+  | 'prediksi-kritis'
+  | 'batas-harian'
+  | 'batas-aplikasi'
+  | 'pemakaian-malam';
 
 export type NotificationFinding = {
   kind: NotificationFindingKind;
@@ -165,18 +171,172 @@ export function shouldSendDailySummary(input: DailySummaryInput): boolean {
 
 export type DailySummaryContentInput = {
   todayMobileBytes: number;
+  /** Wi-Fi hari ini (0 bila tidak diketahui) — untuk pecahan ringkasan. */
+  todayWifiBytes?: number;
+  /** Total hari ini; bawaan = seluler + Wi-Fi. */
+  todayTotalBytes?: number;
   remainingBytes: number;
-  pkg: QuotaPackage;
+  /** Null = tidak ada paket aktif — kalimat sisa kuota dihilangkan. */
+  pkg: QuotaPackage | null;
 };
 
-/** Isi ringkasan harian — selalu berangka (hari ini + sisa kuota). */
+/**
+ * Isi ringkasan harian — selalu berangka (total internet hari ini +
+ * pecahannya, lalu sisa kuota bila ada paket). Bentuk lama
+ * (hanya todayMobileBytes + pkg) tetap didukung: total dihitung dari
+ * seluler + Wi-Fi.
+ */
 export function dailySummaryContent(input: DailySummaryContentInput): {
   title: string;
   body: string;
 } {
   const { todayMobileBytes, remainingBytes, pkg } = input;
+  const todayWifiBytes = input.todayWifiBytes ?? 0;
+  const todayTotalBytes = input.todayTotalBytes ?? todayMobileBytes + todayWifiBytes;
+  const pemakaian = `Hari ini memakai ${formatBytes(todayTotalBytes)} internet (seluler ${formatBytes(todayMobileBytes)} · Wi-Fi ${formatBytes(todayWifiBytes)}).`;
+  const sisa =
+    pkg === null
+      ? ' Tidak ada paket seluler aktif.'
+      : ` Sisa kuota ${pkg.name}: ${formatBytes(remainingBytes)} dari ${formatGB(pkg.quotaBytes)}.`;
   return {
-    title: 'Ringkasan harian kuota',
-    body: `Hari ini memakai ${formatBytes(todayMobileBytes)} seluler. Sisa kuota ${pkg.name}: ${formatBytes(remainingBytes)} dari ${formatGB(pkg.quotaBytes)}.`,
+    title: 'Ringkasan harian internet',
+    body: `${pemakaian}${sisa}`,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Pengingat internet (v1.3.0) — pemicu yang TIDAK bergantung pada paket:
+// batas harian total internet, batas harian per aplikasi, dan pemakaian
+// malam. Semua memakai kunci dedup tanggal yang sama seperti ambang
+// kuota, supaya masing-masing hanya berbunyi sekali per hari / malam.
+// ---------------------------------------------------------------------------
+
+export type DailyInternetBudgetInput = {
+  /** Total internet hari ini (seluler + Wi-Fi). */
+  todayTotalBytes: number;
+  /** Batas harian tersimpan; 0 = fitur mati. */
+  budgetBytes: number;
+  /** Kunci dedup yang sudah berbunyi. */
+  firedIds: string[];
+  now: Date;
+};
+
+/**
+ * Batas harian total internet tercapai: sekali sehari. Batas 0 (mati)
+ * tidak pernah berbunyi.
+ */
+export function detectDailyInternetBudget(
+  input: DailyInternetBudgetInput,
+): NotificationFinding | null {
+  const { todayTotalBytes, budgetBytes, firedIds, now } = input;
+  if (budgetBytes <= 0) return null;
+  if (todayTotalBytes < budgetBytes) return null;
+  const dateISO = dateISOOf(now);
+  const kunci = `batas-harian:${dateISO}`;
+  if (firedIds.includes(kunci)) return null;
+  return {
+    kind: 'batas-harian',
+    dedupKey: kunci,
+    dateISO,
+    title: 'Batas harian internet tercapai',
+    detail: `Hari ini sudah memakai ${formatBytes(todayTotalBytes)} internet (seluler + Wi-Fi), mencapai batas harian ${formatBytes(budgetBytes)}.`,
+  };
+}
+
+export type PerAppBudgetInput = {
+  /** Pemakaian per aplikasi hari ini (total seluler + Wi-Fi tiap aplikasi). */
+  perAppToday: { packageName: string; label: string; bytes: number }[];
+  /** Batas per aplikasi tersimpan. */
+  budgets: PerAppBudget[];
+  /** Kunci dedup yang sudah berbunyi. */
+  firedIds: string[];
+  now: Date;
+};
+
+/**
+ * Batas-batas per aplikasi yang BARU tercapai hari ini: satu temuan
+ * per aplikasi. Aplikasi tanpa batas / tanpa pemakaian hari ini
+ * dilewati. Urutan mengikuti urutan batas tersimpan.
+ */
+export function detectPerAppBudgets(input: PerAppBudgetInput): NotificationFinding[] {
+  const { perAppToday, budgets, firedIds, now } = input;
+  const dateISO = dateISOOf(now);
+  const temuan: NotificationFinding[] = [];
+  for (const batas of budgets) {
+    const pemakaian = perAppToday.find((a) => a.packageName === batas.packageName);
+    if (!pemakaian || pemakaian.bytes < batas.budgetBytes) continue;
+    const kunci = `batas-aplikasi:${dateISO}:${batas.packageName}`;
+    if (firedIds.includes(kunci)) continue;
+    temuan.push({
+      kind: 'batas-aplikasi',
+      dedupKey: kunci,
+      dateISO,
+      title: `${batas.label} mencapai batas harian`,
+      detail: `${batas.label} hari ini sudah memakai ${formatBytes(pemakaian.bytes)}, mencapai batas harian ${formatBytes(batas.budgetBytes)}.`,
+    });
+  }
+  return temuan;
+}
+
+/**
+ * Jendela pemakaian malam: 00:00–06:00 waktu lokal. Pemakaian malam
+ * baru bisa dinilai SETELAH jam 06:00 — sebelum itu malamnya belum
+ * selesai dan tidak ada yang dilaporkan.
+ */
+export const OVERNIGHT_START_HOUR = 0;
+export const OVERNIGHT_END_HOUR = 6;
+/**
+ * Ambang pemakaian malam: di bawah ini dianggap sinkronisasi latar
+ * biasa (backup, update, pesan masuk), bukan pemakaian yang layak
+ * membangunkan pengguna dengan pengingat.
+ */
+export const OVERNIGHT_THRESHOLD_BYTES = 500 * 1024 * 1024;
+
+/**
+ * Jendela malam yang baru saja berakhir untuk `now`: [00:00, 06:00)
+ * hari yang sama. Null bila `now` masih sebelum jam 06:00 (malam
+ * belum selesai). `nightDateISO` = tanggal pagi harinya — identitas
+ * satu malam itu untuk kunci dedup.
+ */
+export function overnightWindowFor(now: Date): {
+  start: number;
+  end: number;
+  nightDateISO: string;
+} | null {
+  if (now.getHours() < OVERNIGHT_END_HOUR) return null;
+  const start = startOfDayMillis(now) + OVERNIGHT_START_HOUR * 60 * 60 * 1000;
+  const end = startOfDayMillis(now) + OVERNIGHT_END_HOUR * 60 * 60 * 1000;
+  return { start, end, nightDateISO: dateISOOf(now) };
+}
+
+export type OvernightUsageInput = {
+  /** Total internet (seluler + Wi-Fi) pada jendela malam. */
+  nightTotalBytes: number;
+  /** Kunci dedup yang sudah berbunyi. */
+  firedIds: string[];
+  now: Date;
+  /** Ambang; bawaan = OVERNIGHT_THRESHOLD_BYTES. */
+  thresholdBytes?: number;
+};
+
+/**
+ * Pengingat pemakaian malam: pemakaian jendela 00:00–06:00 mencapai
+ * ambang, sekali per malam. `now` sebelum jam 06:00 tidak pernah
+ * berbunyi (lihat `overnightWindowFor`).
+ */
+export function detectOvernightUsage(input: OvernightUsageInput): NotificationFinding | null {
+  const { nightTotalBytes, firedIds, now } = input;
+  const threshold = input.thresholdBytes ?? OVERNIGHT_THRESHOLD_BYTES;
+  const jendela = overnightWindowFor(now);
+  if (!jendela) return null;
+  if (nightTotalBytes < threshold) return null;
+  const kunci = `pemakaian-malam:${jendela.nightDateISO}`;
+  if (firedIds.includes(kunci)) return null;
+  return {
+    kind: 'pemakaian-malam',
+    dedupKey: kunci,
+    dateISO: jendela.nightDateISO,
+    title: 'Pemakaian besar semalam (00:00–06:00)',
+    detail: `Semalam perangkat memakai ${formatBytes(nightTotalBytes)} internet pada 00:00–06:00 — di atas ambang pengingat ${formatBytes(threshold)}. Periksa aplikasi yang berjalan semalam bila ini tidak kamu sengaja.`,
   };
 }
