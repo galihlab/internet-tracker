@@ -18,6 +18,15 @@ type Store = {
   setItem: (key: string, value: string) => Promise<void>;
 };
 
+/** Store + operasi klaim atomik (lihat db.ts). Opsional supaya toko palsu di tes tetap bisa dipakai. */
+export type ClaimStore = Store & {
+  claimKey?: (key: string) => Promise<boolean>;
+  clearClaimKeys?: (prefix: string) => Promise<void>;
+};
+
+/** Prefix kunci klaim atomik di kv — satu kunci klaim per kunci dedup. */
+export const NOTIFICATION_CLAIM_PREFIX = '@kuota-tracker:claim:v1:';
+
 function kosong(): NotificationState {
   return { firedIds: [], lastDailySummaryDateISO: null };
 }
@@ -63,23 +72,31 @@ export async function saveNotificationState(
 }
 
 /**
- * Tandai kunci-kunci dedup sudah berbunyi. Kunci yang sudah ada tidak
- * diduplikasi. Mengembalikan status terbaru.
+ * Klaim atomik satu kunci dedup — gerbang exactly-once pengiriman
+ * notifikasi. Dua pelari yang bersamaan (effect foreground +
+ * tugas latar per 60 menit) hanya menghasilkan SATU pemenang: yang
+ * kalah tidak mengirim. Ini menutup balapan cek-di-awal /
+ * tandai-di-akhir yang menyebabkan notifikasi ganda di perangkat
+ * (laporan 20 Okt 2026: "Pemakaian besar semalam" berbunyi dua kali).
+ *
+ * Kunci yang sudah ada di firedIds (riwayat versi lama) langsung
+ * ditolak tanpa menyentuh klaim. Pemenang juga dicatat ke firedIds
+ * supaya pembaca lama (detektor, StatusAmbang) tetap melihatnya.
+ * Tanpa claimKey atomik (toko palsu / fallback), klaim = catat-dulu
+ * (jendela balapan menyempit drastis walau tak tertutup penuh).
  */
-export async function markNotificationsFired(
-  store: Store,
-  ids: string[],
-): Promise<NotificationState> {
+export async function claimFiredKey(store: ClaimStore, key: string): Promise<boolean> {
   const state = await loadNotificationState(store);
-  const sudah = new Set(state.firedIds);
-  for (const id of ids) {
-    if (!sudah.has(id)) {
-      sudah.add(id);
-      state.firedIds.push(id);
-    }
+  if (state.firedIds.includes(key)) return false;
+  if (store.claimKey) {
+    const menang = await store.claimKey(NOTIFICATION_CLAIM_PREFIX + key);
+    if (!menang) return false;
   }
-  await saveNotificationState(store, state);
-  return state;
+  if (!state.firedIds.includes(key)) {
+    state.firedIds.push(key);
+    await saveNotificationState(store, state);
+  }
+  return true;
 }
 
 /** Tandai ringkasan harian untuk tanggal itu sudah terkirim. */
@@ -100,6 +117,13 @@ export async function markDailySummarySent(
  * tanda paket memakai signature startDate+kuota+durasi, jadi edit
  * kuota/durasi sudah memberi siklus baru lewat signature yang berubah.
  */
-export async function resetNotificationState(store: Store): Promise<void> {
+export async function resetNotificationState(store: ClaimStore): Promise<void> {
   await saveNotificationState(store, kosong());
+  // Klaim lama ikut dibersihkan supaya siklus paket baru benar-benar
+  // baru — tanpa ini, klaim dari paket lama memblokir bunyi ulang.
+  try {
+    await store.clearClaimKeys?.(NOTIFICATION_CLAIM_PREFIX);
+  } catch {
+    // Best-effort: lihat komentar kvClearClaims di db.ts.
+  }
 }
