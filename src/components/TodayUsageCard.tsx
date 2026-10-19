@@ -1,6 +1,6 @@
+import { Fragment } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Rect, Text as SvgText } from 'react-native-svg';
-import { formatBytes } from '../lib/format';
 import type { DailyUsage } from '../lib/usage';
 import { colors, radius, spacing, typography } from '../theme';
 
@@ -13,41 +13,25 @@ const CHART_WIDTH = 320;
 const CHART_HEIGHT = 72;
 const BAR_WIDTH = 26;
 
-/** Teks delta terhadap kemarin pada jam yang sama. */
-function deltaText(today: number, yesterday: number): { text: string; naik: boolean | null } {
-  if (yesterday <= 0) {
-    if (today <= 0) return { text: 'Belum ada pemakaian', naik: null };
-    return { text: 'Kemarin belum tercatat', naik: null };
-  }
-  const persen = Math.round(((today - yesterday) / yesterday) * 100);
-  if (persen === 0) return { text: 'Sama seperti kemarin', naik: null };
-  return {
-    text: `${persen > 0 ? '▲' : '▼'} ${Math.abs(persen)}% dari kemarin`,
-    naik: persen > 0,
-  };
-}
-
 /**
- * Kartu Penggunaan Hari Ini (T1.7 + T2.2): seluler sejak tengah malam,
- * delta persen terhadap KEMARIN PADA JAM YANG SAMA (bukan kemarin
- * seharian — supaya adil), grafik batang 7 hari dengan hari ini disorot
- * hijau tua. Data dibaca dari bucket harian ter-cache; bila tampil
- * snapshot terakhir (query gagal / izin dicabut), cap "terakhir
- * diperbarui" ditampilkan — bukan data contoh diam-diam.
+ * Kartu grafik 7 hari (v1.2.0, internet-first): batang bertumpuk TOTAL
+ * internet per hari — seluler di bawah (gelap), Wi-Fi di atas (terang) —
+ * dengan legenda. Angka "hari ini" hidup di InternetTodayCard di atas;
+ * kartu ini hanya grafiknya. Bila tampil snapshot terakhir (query gagal
+ * / izin dicabut), cap "terakhir diperbarui" ditampilkan — bukan data
+ * contoh diam-diam.
  */
 export default function TodayUsageCard({ daily }: Props) {
   if (!daily) {
     return (
       <View style={styles.card}>
-        <Text style={styles.title}>Penggunaan Hari Ini</Text>
+        <Text style={styles.title}>Internet 7 hari terakhir</Text>
         <Text style={styles.loading}>Memuat…</Text>
       </View>
     );
   }
 
-  const delta = deltaText(daily.todayMobileBytes, daily.yesterdaySameHourMobileBytes);
-  const wifiHariIni = daily.last7Days.find((d) => d.isToday)?.wifiBytes ?? 0;
-  const maks = Math.max(1, ...daily.last7Days.map((d) => d.mobileBytes));
+  const maks = Math.max(1, ...daily.last7Days.map((d) => d.mobileBytes + d.wifiBytes));
   const slotWidth = CHART_WIDTH / 7;
   // Cap waktu snapshot terakhir — hanya tampil bila data berasal dari
   // snapshot (query gagal / izin dicabut), bukan dari query segar.
@@ -63,30 +47,39 @@ export default function TodayUsageCard({ daily }: Props) {
 
   return (
     <View style={styles.card}>
-      <Text style={styles.title}>Penggunaan Hari Ini</Text>
-      <Text style={styles.big}>{formatBytes(daily.todayMobileBytes)}</Text>
-      <Text style={styles.delta}>{delta.text}</Text>
-      <Text style={styles.wifi}>Wi-Fi hari ini {formatBytes(wifiHariIni)} · tidak mengurangi kuota</Text>
+      <Text style={styles.title}>Internet 7 hari terakhir</Text>
       {capSnapshot ? <Text style={styles.snapshot}>{capSnapshot}</Text> : null}
       <Svg
         width="100%"
         viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
         style={styles.chart}
-        accessibilityLabel="Grafik batang pemakaian seluler 7 hari terakhir"
+        accessibilityLabel="Grafik batang total internet 7 hari terakhir: seluler dan Wi-Fi bertumpuk per hari"
       >
         {daily.last7Days.map((d, i) => {
-          const tinggi = d.mobileBytes > 0 ? Math.max(3, (d.mobileBytes / maks) * 52) : 0;
+          const total = d.mobileBytes + d.wifiBytes;
+          const tinggi = total > 0 ? Math.max(3, (total / maks) * 52) : 0;
+          const tinggiSeluler = total > 0 ? (d.mobileBytes / total) * tinggi : 0;
+          const tinggiWifi = tinggi - tinggiSeluler;
           const x = i * slotWidth + (slotWidth - BAR_WIDTH) / 2;
           return (
-            <Rect
-              key={d.dateISO}
-              x={x}
-              y={56 - tinggi}
-              width={BAR_WIDTH}
-              height={tinggi}
-              rx={6}
-              fill={d.isToday ? colors.primary : colors.sageActive}
-            />
+            <Fragment key={d.dateISO}>
+              <Rect
+                x={x}
+                y={56 - tinggi}
+                width={BAR_WIDTH}
+                height={tinggiWifi}
+                rx={6}
+                fill={colors.sageActive}
+              />
+              <Rect
+                x={x}
+                y={56 - tinggiSeluler}
+                width={BAR_WIDTH}
+                height={tinggiSeluler}
+                rx={6}
+                fill={colors.primary}
+              />
+            </Fragment>
           );
         })}
         {daily.last7Days.map((d, i) => (
@@ -103,6 +96,16 @@ export default function TodayUsageCard({ daily }: Props) {
           </SvgText>
         ))}
       </Svg>
+      <View style={styles.legend}>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendDot, { backgroundColor: colors.primary }]} />
+          <Text style={styles.legendText}>Seluler</Text>
+        </View>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendDot, { backgroundColor: colors.sageActive }]} />
+          <Text style={styles.legendText}>Wi-Fi</Text>
+        </View>
+      </View>
     </View>
   );
 }
@@ -118,21 +121,6 @@ const styles = StyleSheet.create({
     ...typography.label,
     color: colors.secondary,
   },
-  big: {
-    ...typography.bigNumber,
-    color: colors.ink,
-    marginTop: spacing.xs,
-  },
-  delta: {
-    ...typography.caption,
-    color: colors.secondary,
-    marginTop: spacing.xs,
-  },
-  wifi: {
-    ...typography.caption,
-    color: colors.secondary,
-    marginTop: spacing.xs,
-  },
   snapshot: {
     ...typography.caption,
     color: colors.warning,
@@ -146,5 +134,24 @@ const styles = StyleSheet.create({
   chart: {
     marginTop: spacing.md,
     height: CHART_HEIGHT,
+  },
+  legend: {
+    flexDirection: 'row',
+    gap: spacing.lg,
+    marginTop: spacing.sm,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  legendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  legendText: {
+    ...typography.caption,
+    color: colors.secondary,
   },
 });
