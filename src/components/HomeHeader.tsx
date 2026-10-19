@@ -1,10 +1,12 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { colors, radius, spacing, typography } from '../theme';
 
 type Props = {
   /** Nama dari Pengaturan; string kosong berarti belum diisi. */
   userName: string;
+  /** Foto profil (data URI) dari Pengaturan; string kosong berarti belum diisi. */
+  profilePhoto: string;
   /** Jumlah peringatan belum dibaca — titik merah lonceng (T4.3). */
   unreadAlerts: number;
   onPressBell: () => void;
@@ -53,7 +55,7 @@ function PersonIcon({ color }: { color: string }) {
  * avatar inisial nama (ikon generik bila nama kosong). Titik merah lonceng
  * hanya tampil bila ada peringatan belum dibaca.
  */
-export default function HomeHeader({ userName, unreadAlerts, onPressBell, onPressAvatar }: Props) {
+export default function HomeHeader({ userName, profilePhoto, unreadAlerts, onPressBell, onPressAvatar }: Props) {
   const sapaan = greetingForHour(new Date().getHours());
   const inisial = initialsForName(userName);
   const namaBersih = userName.trim();
@@ -82,7 +84,13 @@ export default function HomeHeader({ userName, unreadAlerts, onPressBell, onPres
           accessibilityRole="button"
           accessibilityLabel={namaBersih ? `Profil ${namaBersih}` : 'Profil'}
         >
-          {inisial ? (
+          {profilePhoto ? (
+            <Image
+              source={{ uri: profilePhoto }}
+              style={styles.avatarImage}
+              accessibilityLabel="Foto profil"
+            />
+          ) : inisial ? (
             <Text style={styles.avatarText}>{inisial}</Text>
           ) : (
             <PersonIcon color={colors.primary} />
@@ -140,6 +148,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.sageActive,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: 44,
+    height: 44,
   },
   avatarText: {
     ...typography.heading,
