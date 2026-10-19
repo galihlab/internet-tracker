@@ -33,6 +33,8 @@ type SettingsContextValue = {
   startNewPackage: (pkg: QuotaPackage) => Promise<void>;
   /** Simpan nama pengguna (dipakai Pengaturan). */
   updateUserName: (userName: string) => Promise<void>;
+  /** Simpan foto profil (data URI JPEG base64, '' = hapus; dipakai Pengaturan). */
+  updateProfilePhoto: (profilePhoto: string) => Promise<void>;
   /**
    * Simpan opsi notifikasi (dipakai Pengaturan): master on/off, daftar
    * ambang aktif, ringkasan harian on/off + jamnya. Satu pemanggil
@@ -108,6 +110,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     (userName: string) => patch({ userName }),
     [patch],
   );
+  const updateProfilePhoto = useCallback(
+    (profilePhoto: string) => patch({ profilePhoto }),
+    [patch],
+  );
   const updateNotificationOptions = useCallback(
     (
       opsi: Partial<
@@ -133,6 +139,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       updatePackage,
       startNewPackage,
       updateUserName,
+      updateProfilePhoto,
       updateNotificationOptions,
       markWelcomeSeen,
       resetWelcomeSeen,
@@ -144,6 +151,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       updatePackage,
       startNewPackage,
       updateUserName,
+      updateProfilePhoto,
       updateNotificationOptions,
       markWelcomeSeen,
       resetWelcomeSeen,
