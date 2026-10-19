@@ -1,13 +1,13 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Circle, Line, Polyline, Rect, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle, G, Line, Polyline, Rect, Text as SvgText } from 'react-native-svg';
 import AppIcon from '../../components/AppIcon';
 import CustomRangePicker from '../../components/CustomRangePicker';
 import PeriodSegmentedControl from '../../components/PeriodSegmentedControl';
 import StatCards from '../../components/StatCards';
 import { useAppIcons } from '../../lib/appIcons';
-import { SYSTEM_ROW_PACKAGE } from '../../lib/appUsage';
+import { SYSTEM_ROW_PACKAGE, topAppForDay } from '../../lib/appUsage';
 import { buildPolylinePoints } from '../../lib/chartPoints';
 import { formatBytes, formatCapWaktu, formatDateID } from '../../lib/format';
 import { useSettings } from '../../lib/settings';
@@ -21,13 +21,14 @@ const BAR_CHART_HEIGHT = 120;
 const LINE_CHART_HEIGHT = 150;
 
 /**
- * Tab Statistik (T3.5 + T3.6): grafik batang pemakaian harian untuk
- * periode terpilih (batang bertumpuk seluler + Wi-Fi), grafik garis
- * kumulatif terpakai terhadap garis laju ideal paket, dan rincian
- * total, rata-rata hari penuh, hari terboros, serta aplikasi teratas
- * untuk periode itu. Semua grafik digambar dengan react-native-svg —
- * tanpa pustaka grafik baru. Bila belum ada bucket harian, tampil
- * tanggal sejak kapan data mulai terkumpul (T3.6), bukan grafik kosong.
+ * Tab Statistik (v1.2.0, internet-first): grafik batang pemakaian harian
+ * untuk periode terpilih (batang bertumpuk seluler + Wi-Fi, ketuk batang
+ * untuk rincian hari itu), grafik garis kumulatif TOTAL internet, grafik
+ * garis kumulatif seluler terhadap laju ideal paket, dan rincian total,
+ * rata-rata hari penuh, hari terboros, serta aplikasi teratas untuk
+ * periode itu. Semua grafik digambar dengan react-native-svg — tanpa
+ * pustaka grafik baru. Bila belum ada bucket harian, tampil tanggal
+ * sejak kapan data mulai terkumpul (T3.6), bukan grafik kosong.
  * Bila data berasal dari snapshot tersimpan (query gagal), cap
  * "terakhir diperbarui" ditampilkan.
  */
@@ -35,8 +36,11 @@ export default function StatistikScreen() {
   const insets = useSafeAreaInsets();
   const { settings } = useSettings();
   const pkg = settings.pkg;
-  const { period, setPeriod, customRange, setCustomRange, summary, periodApps, buckets, bucketsMeta, loading } = useUsage();
+  const { period, setPeriod, customRange, setCustomRange, summary, periodApps, buckets, perAppDaily, bucketsMeta, loading } = useUsage();
   const icons = useAppIcons(periodApps.map((a) => a.packageName));
+  // Hari yang dipilih lewat ketukan batang (v1.2.0); null = ikut default
+  // (hari ini bila ada di periode, kalau tidak hari terakhir periode).
+  const [hariTerpilih, setHariTerpilih] = useState<string | null>(null);
 
   const rentang = useMemo(
     () => periodToRange(period, undefined, customRange),
@@ -62,22 +66,66 @@ export default function StatistikScreen() {
   }, [buckets, pkg.startDate, hariIniISO]);
 
   // Rincian periode: rata-rata hari PENUH (hari ini parsial dikecualikan),
-  // hari terboros (seluler terbesar), aplikasi teratas (seluler terbesar).
+  // hari terboros (TOTAL internet terbesar), aplikasi teratas (TOTAL
+  // internet terbesar). Semua berbasis total internet, bukan seluler saja.
   const rincian = useMemo(() => {
     const hariPenuh = bucketPeriode.filter((b) => b.dateISO < hariIniISO);
     const rataHariPenuh =
       hariPenuh.length > 0
-        ? hariPenuh.reduce((s, b) => s + b.mobileBytes, 0) / hariPenuh.length
+        ? hariPenuh.reduce((s, b) => s + b.mobileBytes + b.wifiBytes, 0) / hariPenuh.length
         : null;
     const terboros =
       bucketPeriode.length > 0
-        ? bucketPeriode.reduce((maks, b) => (b.mobileBytes > maks.mobileBytes ? b : maks))
+        ? bucketPeriode.reduce((maks, b) =>
+            b.mobileBytes + b.wifiBytes > maks.mobileBytes + maks.wifiBytes ? b : maks,
+          )
         : null;
     const teratas = periodApps
       .filter((a) => a.packageName !== SYSTEM_ROW_PACKAGE)
-      .sort((a, b) => b.mobileBytes - a.mobileBytes)[0];
+      .sort((a, b) => b.bytes - a.bytes)[0];
     return { rataHariPenuh, terboros, teratas, jumlahHariPenuh: hariPenuh.length };
   }, [bucketPeriode, periodApps, hariIniISO]);
+
+  // Hari untuk panel rincian (v1.2.0): pilihan ketukan bila masih di
+  // periode, kalau tidak default hari ini / hari terakhir periode.
+  const hariDetail = useMemo(() => {
+    if (hariTerpilih && bucketPeriode.some((b) => b.dateISO === hariTerpilih)) {
+      return hariTerpilih;
+    }
+    return (
+      bucketPeriode.find((b) => b.dateISO === hariIniISO)?.dateISO ??
+      bucketPeriode[bucketPeriode.length - 1]?.dateISO ??
+      null
+    );
+  }, [hariTerpilih, bucketPeriode, hariIniISO]);
+  const bucketDetail = hariDetail
+    ? (bucketPeriode.find((b) => b.dateISO === hariDetail) ?? null)
+    : null;
+  const appTeratasHari = hariDetail ? topAppForDay(perAppDaily, hariDetail) : null;
+
+  // Kumulatif TOTAL internet (seluler + Wi-Fi) pada periode terpilih.
+  const kumulatifTotal = useMemo(
+    () =>
+      bucketPeriode.reduce<{ dateISO: string; kumulatif: number }[]>((titik, b) => {
+        const sebelumnya = titik.length > 0 ? titik[titik.length - 1].kumulatif : 0;
+        return [
+          ...titik,
+          { dateISO: b.dateISO, kumulatif: sebelumnya + b.mobileBytes + b.wifiBytes },
+        ];
+      }, []),
+    [bucketPeriode],
+  );
+  const maksKumulatifTotal = Math.max(1, ...kumulatifTotal.map((p) => p.kumulatif));
+  const titikTotalKeXY = (i: number, nilai: number) => {
+    const n = Math.max(1, kumulatifTotal.length - 1);
+    return {
+      x: 12 + (i / n) * (CHART_WIDTH - 24),
+      y: 128 - (nilai / maksKumulatifTotal) * 110,
+    };
+  };
+  const polylineKumulatifTotal = buildPolylinePoints(
+    kumulatifTotal.map((p, i) => titikTotalKeXY(i, p.kumulatif)),
+  );
 
   // Grafik kumulatif: titik (tanggal, kumulatif seluler) + garis ideal.
   const kumulatif = useMemo(
@@ -185,6 +233,7 @@ export default function StatistikScreen() {
                         height={tinggi}
                         rx={4}
                         fill={colors.sageActive}
+                        onPress={() => setHariTerpilih(b.dateISO)}
                       />
                     );
                   })}
@@ -222,6 +271,40 @@ export default function StatistikScreen() {
                       </SvgText>
                     );
                   })}
+                  {bucketDetail
+                    ? (() => {
+                        const i = bucketPeriode.findIndex((b) => b.dateISO === bucketDetail.dateISO);
+                        const total = bucketDetail.mobileBytes + bucketDetail.wifiBytes;
+                        const tinggi =
+                          total > 0 ? Math.max(4, (total / maksBatang) * 80) : 0;
+                        const barWidth = Math.max(4, Math.min(26, slotBatang * 0.6));
+                        const x = i * slotBatang + (slotBatang - barWidth) / 2;
+                        return (
+                          <G key="terpilih">
+                            <Rect
+                              x={x - 2}
+                              y={92 - tinggi - 2}
+                              width={barWidth + 4}
+                              height={tinggi + 4}
+                              rx={6}
+                              fill="none"
+                              stroke={colors.primary}
+                              strokeWidth={1.5}
+                            />
+                            <SvgText
+                              x={i * slotBatang + slotBatang / 2}
+                              y={Math.max(10, 92 - tinggi - 8)}
+                              fontSize={10}
+                              fontWeight="700"
+                              fill={colors.primary}
+                              textAnchor="middle"
+                            >
+                              {formatBytes(total)}
+                            </SvgText>
+                          </G>
+                        );
+                      })()
+                    : null}
                 </Svg>
               )}
               <View style={styles.legend}>
@@ -234,6 +317,74 @@ export default function StatistikScreen() {
                   <Text style={styles.legendText}>Wi-Fi</Text>
                 </View>
               </View>
+              {bucketDetail ? (
+                <View style={styles.dayDetail}>
+                  <Text style={styles.dayDetailTitle}>
+                    Rincian {formatDateID(parseDateISO(bucketDetail.dateISO))}
+                  </Text>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Seluler</Text>
+                    <Text style={styles.detailValue}>{formatBytes(bucketDetail.mobileBytes)}</Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Wi-Fi</Text>
+                    <Text style={styles.detailValue}>{formatBytes(bucketDetail.wifiBytes)}</Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Total</Text>
+                    <Text style={styles.detailValue}>
+                      {formatBytes(bucketDetail.mobileBytes + bucketDetail.wifiBytes)}
+                    </Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Aplikasi teratas</Text>
+                    <Text style={styles.detailValue}>
+                      {appTeratasHari
+                        ? `${appTeratasHari.label} · ${formatBytes(appTeratasHari.bytes)}`
+                        : 'Belum ada data per aplikasi hari itu'}
+                    </Text>
+                  </View>
+                  <Text style={styles.hint}>Ketuk batang lain untuk melihat rincian hari itu.</Text>
+                </View>
+              ) : null}
+            </View>
+
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Kumulatif internet</Text>
+              {kumulatifTotal.length === 0 ? (
+                <Text style={styles.empty}>
+                  Belum ada riwayat harian pada periode terpilih.
+                </Text>
+              ) : (
+                <>
+                  <Svg
+                    width="100%"
+                    viewBox={`0 0 ${CHART_WIDTH} ${LINE_CHART_HEIGHT}`}
+                    style={styles.chart}
+                    accessibilityLabel="Grafik garis kumulatif total internet pada periode terpilih"
+                  >
+                    <Line x1={12} y1={128} x2={CHART_WIDTH - 12} y2={128} stroke={colors.sageLight} strokeWidth={1} />
+                    <Polyline
+                      points={polylineKumulatifTotal}
+                      fill="none"
+                      stroke={colors.primary}
+                      strokeWidth={2.5}
+                      strokeLinejoin="round"
+                      strokeLinecap="round"
+                    />
+                    {kumulatifTotal.map((p, i) => {
+                      const { x, y } = titikTotalKeXY(i, p.kumulatif);
+                      return <Circle key={p.dateISO} cx={x} cy={y} r={3} fill={colors.primary} />;
+                    })}
+                    <SvgText x={12} y={16} fontSize={10} fill={colors.secondary}>
+                      {formatBytes(maksKumulatifTotal)}
+                    </SvgText>
+                  </Svg>
+                  <Text style={styles.note}>
+                    Total internet kumulatif (seluler + Wi-Fi) pada periode terpilih.
+                  </Text>
+                </>
+              )}
             </View>
 
             <View style={styles.card}>
@@ -304,14 +455,14 @@ export default function StatistikScreen() {
                 <Text style={styles.detailValue}>
                   {rincian.rataHariPenuh === null
                     ? 'Belum ada hari penuh tercatat'
-                    : `${formatBytes(rincian.rataHariPenuh)} seluler (${rincian.jumlahHariPenuh} hari)`}
+                    : `${formatBytes(rincian.rataHariPenuh)} (${rincian.jumlahHariPenuh} hari)`}
                 </Text>
               </View>
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Hari terboros</Text>
                 <Text style={styles.detailValue}>
                   {rincian.terboros
-                    ? `${formatBytes(rincian.terboros.mobileBytes)} seluler · ${formatDateID(parseDateISO(rincian.terboros.dateISO))}`
+                    ? `${formatBytes(rincian.terboros.mobileBytes + rincian.terboros.wifiBytes)} · ${formatDateID(parseDateISO(rincian.terboros.dateISO))}`
                     : 'Belum tercatat'}
                 </Text>
               </View>
@@ -325,7 +476,7 @@ export default function StatistikScreen() {
                       size={28}
                     />
                     <Text style={styles.detailValue}>
-                      {rincian.teratas.label} · {formatBytes(rincian.teratas.mobileBytes)} seluler
+                      {rincian.teratas.label} · {formatBytes(rincian.teratas.bytes)}
                     </Text>
                   </View>
                 ) : (
@@ -444,5 +595,21 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     flex: 1,
     justifyContent: 'flex-end',
+  },
+  dayDetail: {
+    borderTopWidth: 1,
+    borderTopColor: colors.sageLight,
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+  },
+  dayDetailTitle: {
+    ...typography.label,
+    color: colors.ink,
+    marginBottom: spacing.xs,
+  },
+  hint: {
+    ...typography.caption,
+    color: colors.secondary,
+    marginTop: spacing.sm,
   },
 });
