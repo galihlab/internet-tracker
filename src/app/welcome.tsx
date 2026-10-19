@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   AppState,
@@ -18,8 +18,7 @@ import Svg, { Circle } from 'react-native-svg';
 import DateTimePicker, {
   type DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
-import { formatCapWaktu, formatDateID, formatGB, GB } from '../lib/format';
-import { computeQuota, packageLastDay } from '../lib/quota';
+import { formatBytes, formatCapWaktu, formatDateID, GB } from '../lib/format';
 import { useSettings } from '../lib/settings';
 import { useUsage } from '../lib/usage';
 import { openUsageAccessSettings } from '../lib/usageStats';
@@ -30,77 +29,18 @@ const PAGE_COUNT = 6;
 
 const PROMISES = [
   {
+    title: 'Total internetmu',
+    desc: 'Seluler + Wi-Fi dalam satu angka — total hari ini, kemarin, dan 7 hari terakhir, tanpa menebak-nebak.',
+  },
+  {
     title: 'Pantau per aplikasi',
-    desc: 'Lihat aplikasi mana yang paling banyak memakai kuota selulermu, tanpa menebak-nebak.',
+    desc: 'Lihat aplikasi mana yang paling banyak memakai internetmu, seluler dan Wi-Fi.',
   },
   {
-    title: 'Prediksi habis',
-    desc: 'Perkiraan kapan kuotamu habis, dihitung dari rata-rata pemakaianmu sendiri.',
-  },
-  {
-    title: 'Peringatan sebelum kritis',
-    desc: 'Diberi tahu sebelum kuota kritis, supaya kamu sempat mengatur pemakaian.',
+    title: 'Pengingat sebelum kebablasan',
+    desc: 'Diberi tahu saat pemakaian harian, pemakaian per aplikasi, atau kuota seluler mendekati batas.',
   },
 ];
-
-/** Ring kecil persen terpakai pada kartu kaca welcome (T4.4): busur
- *  beranimasi ~500ms menuju persen baru (Animated bawaan RN, tanpa
- *  Reanimated). Angka persen tampil seketika; hanya busur yang bergerak. */
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
-
-function MiniRing({ percent }: { percent: number }) {
-  const size = 60;
-  const stroke = 6;
-  const r = (size - stroke) / 2;
-  const keliling = 2 * Math.PI * r;
-  const nilai = useState(() => new Animated.Value(0))[0];
-
-  useEffect(() => {
-    Animated.timing(nilai, {
-      toValue: Math.max(0, Math.min(1, percent / 100)),
-      duration: 500,
-      useNativeDriver: false,
-    }).start();
-  }, [percent, nilai]);
-
-  // Busur digambar penuh (dasharray = keliling), lalu disembunyikan
-  // sebagian lewat dashoffset yang dianimasikan 0 -> keliling.
-  const offset = nilai.interpolate({
-    inputRange: [0, 1],
-    outputRange: [keliling, 0],
-  });
-
-  return (
-    <View
-      style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}
-      accessibilityLabel={`${Math.round(percent)}% terpakai`}
-    >
-      <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        <Circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          stroke={colors.sageActive}
-          strokeWidth={stroke}
-          fill="none"
-        />
-        <AnimatedCircle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          stroke={colors.progress}
-          strokeWidth={stroke}
-          fill="none"
-          strokeDasharray={keliling}
-          strokeDashoffset={offset}
-          strokeLinecap="round"
-          transform={`rotate(-90 ${size / 2} ${size / 2})`}
-        />
-      </Svg>
-      <Text style={styles.ringText}>{Math.round(percent)}%</Text>
-    </View>
-  );
-}
 
 /** Ikon sinyal kecil di dalam chip "Internet, Terkendali". */
 function SignalIcon() {
@@ -121,23 +61,28 @@ function SignalIcon() {
  * terakhir memuat alur izin akses penggunaan.
  *
  * Kartu kaca memakai satu sumber kebenaran yang sama dengan Beranda
- * (prinsip 1): computeQuota dari pemakaian SELULER saja.
+ * (prinsip 1): total internet hari ini dari data harian — bukan kuota.
  */
 export default function WelcomeScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { settings, markWelcomeSeen, updatePackage } = useSettings();
   const pkg = settings.pkg;
-  const { quotaSummary, nativeStatus, buckets, refresh } = useUsage();
+  const { daily, nativeStatus, refresh } = useUsage();
   const [page, setPage] = useState(0);
   const listRef = useRef<FlatList<number>>(null);
 
   // Form paket onboarding (halaman 4): draf lokal, disimpan lewat
   // tombol — bukan onBlur — supaya jelas kapan paket tersimpan.
-  const [namaPaket, setNamaPaket] = useState(pkg.name);
-  const [kuotaGB, setKuotaGB] = useState(String(Math.round(pkg.quotaBytes / GB)));
-  const [durasiHari, setDurasiHari] = useState(String(pkg.durationDays));
-  const [tanggalMulai, setTanggalMulai] = useState(new Date(pkg.startDate));
+  // Tanpa paket aktif, form mulai dari bawaan (13 GB / 5 hari).
+  const [namaPaket, setNamaPaket] = useState(pkg?.name ?? 'Kuota Utama');
+  const [kuotaGB, setKuotaGB] = useState(
+    String(Math.round((pkg?.quotaBytes ?? 13 * GB) / GB)),
+  );
+  const [durasiHari, setDurasiHari] = useState(String(pkg?.durationDays ?? 5));
+  const [tanggalMulai, setTanggalMulai] = useState(
+    pkg ? new Date(pkg.startDate) : new Date(),
+  );
   const [tampilPilihTanggal, setTampilPilihTanggal] = useState(false);
   const [errorPaket, setErrorPaket] = useState<string | null>(null);
   const [menyimpanPaket, setMenyimpanPaket] = useState(false);
@@ -155,9 +100,17 @@ export default function WelcomeScreen() {
     }
     setErrorPaket(null);
     setMenyimpanPaket(true);
+    const dasar = pkg ?? {
+      name: 'Kuota Utama',
+      quotaBytes: 13 * GB,
+      startDate: dateISOOf(new Date()),
+      durationDays: 5,
+      operator: 'Telkomsel',
+      network: '4G/5G',
+    };
     updatePackage({
-      ...pkg,
-      name: namaPaket.trim() || pkg.name,
+      ...dasar,
+      name: namaPaket.trim() || dasar.name,
       quotaBytes: kuota * GB,
       startDate: dateISOOf(tanggalMulai),
       durationDays: durasi,
@@ -196,11 +149,6 @@ export default function WelcomeScreen() {
   }, [page, footerFade]);
   const naikKaca = masuk.interpolate({ inputRange: [0, 1], outputRange: [12, 0] });
 
-  const quotaState = useMemo(
-    () => (quotaSummary ? computeQuota(pkg, quotaSummary.mobileBytes, new Date(), buckets) : null),
-    [pkg, quotaSummary, buckets],
-  );
-
   // Kembali dari Settings (sistem): status izin dicek ulang begitu
   // aplikasi aktif lagi — layar welcome tidak perlu dibuka ulang.
   useEffect(() => {
@@ -231,11 +179,19 @@ export default function WelcomeScreen() {
     }
   };
 
-  const akhir = packageLastDay(pkg);
   const izinPerluDibuka = nativeStatus.available && !nativeStatus.granted;
 
   const renderHalaman = (index: number) => {
     if (index === 0) {
+      // Angka kartu kaca = angka Beranda (InternetTodayCard): total
+      // hari ini + pecahan + total kemarin seharian.
+      const hariIni = daily?.last7Days.find((d) => d.isToday);
+      const totalHariIni = (hariIni?.mobileBytes ?? 0) + (hariIni?.wifiBytes ?? 0);
+      const kemarin =
+        daily && daily.last7Days.length >= 2
+          ? daily.last7Days[daily.last7Days.length - 2]
+          : undefined;
+      const totalKemarin = kemarin ? kemarin.mobileBytes + kemarin.wifiBytes : null;
       return (
         <View style={[styles.page, { width }]}>
           <View style={styles.pageTop}>
@@ -257,44 +213,34 @@ export default function WelcomeScreen() {
 
           <Animated.View style={[styles.glass, { opacity: masuk, transform: [{ translateY: naikKaca }] }]}>
             <View style={styles.glassHeader}>
-              <Text style={styles.glassLabel}>Kuota Utama</Text>
-              <View style={styles.networkChip}>
-                <Text style={styles.networkChipText}>{pkg.network}</Text>
-              </View>
+              <Text style={styles.glassLabel}>Internet hari ini</Text>
             </View>
-            <Text style={styles.operatorText}>{pkg.operator}</Text>
-            {!quotaState ? (
+            {!daily ? (
               <Text style={styles.loading}>Memuat pemakaian…</Text>
             ) : (
               <>
                 <View style={styles.glassMain}>
                   <View style={styles.glassMainText}>
-                    <Text style={styles.glassBig}>
-                      {formatGB(quotaState.remainingBytes)} tersisa
-                    </Text>
+                    <Text style={styles.glassBig}>{formatBytes(totalHariIni)}</Text>
                     <Text style={styles.glassTotal}>
-                      dari {formatGB(pkg.quotaBytes)} · {Math.round(quotaState.usedPercent)}%
-                      terpakai
+                      Seluler {formatBytes(hariIni?.mobileBytes ?? 0)} · Wi-Fi{' '}
+                      {formatBytes(hariIni?.wifiBytes ?? 0)}
                     </Text>
                   </View>
-                  <MiniRing percent={quotaState.usedPercent} />
                 </View>
                 <Text style={styles.glassDate}>
-                  Berlaku sampai {formatDateID(akhir)} ›
+                  {totalKemarin === null
+                    ? 'Kemarin belum tercatat'
+                    : `Kemarin total ${formatBytes(totalKemarin)} (seharian)`}
                 </Text>
-                {quotaSummary?.source === 'sample' ? (
+                {daily.source === 'sample' ? (
                   <Text style={styles.sampleNote}>
                     Data contoh — beri izin akses penggunaan untuk angka asli.
                   </Text>
                 ) : null}
-                {quotaSummary?.fromSnapshot ? (
+                {daily.fromSnapshot ? (
                   <Text style={styles.snapshotNote}>
-                    Terakhir diperbarui {formatCapWaktu(quotaSummary.updatedAt)}
-                  </Text>
-                ) : null}
-                {quotaSummary?.source === 'empty' ? (
-                  <Text style={styles.sampleNote}>
-                    Belum ada data tersimpan — beri izin akses penggunaan untuk angka asli.
+                    Terakhir diperbarui {formatCapWaktu(daily.updatedAt)}
                   </Text>
                 ) : null}
               </>
@@ -306,7 +252,7 @@ export default function WelcomeScreen() {
 
     if (index === PAGE_COUNT - 2) {
       // Halaman setup paket (5): isi paket pertama di sini — bukan
-      // setelah masuk Beranda — supaya kartu kuota langsung berangka.
+      // setelah masuk Beranda — supaya seksi paket seluler langsung berangka.
       return (
         <View style={[styles.formPage, { width }]}>
           <Text style={styles.promiseTitle}>Atur paket pertamamu</Text>
@@ -557,21 +503,6 @@ const styles = StyleSheet.create({
     ...typography.label,
     color: colors.secondary,
   },
-  networkChip: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-  },
-  networkChipText: {
-    ...typography.label,
-    color: colors.ink,
-  },
-  operatorText: {
-    ...typography.bodyBold,
-    color: colors.ink,
-    marginTop: spacing.sm,
-  },
   glassMain: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -610,11 +541,6 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.secondary,
     marginTop: spacing.md,
-  },
-  ringText: {
-    position: 'absolute',
-    ...typography.caption,
-    color: colors.ink,
   },
   promisePage: {
     flex: 1,
