@@ -135,6 +135,46 @@ async function kvSet(key: string, value: string): Promise<void> {
 }
 
 /**
+ * Klaim atomik satu kunci (gerbang exactly-once dedup notifikasi):
+ * INSERT OR IGNORE ke tabel kv — PRIMARY KEY membuat hanya satu
+ * pemenang per kunci di seluruh proses, walau effect foreground dan
+ * tugas latar berjalan bersamaan. Mengembalikan true bila pemanggil
+ * ini yang menang (baris baru disisipkan).
+ */
+async function kvClaim(key: string): Promise<boolean> {
+  try {
+    const db = await openDb();
+    const hasil = await db.runAsync('INSERT OR IGNORE INTO kv (key, value) VALUES (?, ?)', [
+      key,
+      '1',
+    ]);
+    return hasil.changes === 1;
+  } catch {
+    // SQLite bermasalah — tiru perilaku lama: cek-tulis via AsyncStorage
+    // (tidak atomik, tetapi mencegah duplikat pada kasus umum; mode ini
+    // memang sudah terdegradasi).
+    try {
+      if ((await AsyncStorage.getItem(key)) !== null) return false;
+      await AsyncStorage.setItem(key, '1');
+      return true;
+    } catch {
+      return true;
+    }
+  }
+}
+
+/** Hapus semua kunci klaim notifikasi dengan prefix itu (best-effort). */
+async function kvClearClaims(prefix: string): Promise<void> {
+  try {
+    const db = await openDb();
+    await db.runAsync('DELETE FROM kv WHERE key LIKE ?', [prefix + '%']);
+  } catch {
+    // Best-effort: klaim lama yang bertahan hanya berisiko menahan satu
+    // notifikasi, tidak merusak data lain.
+  }
+}
+
+/**
  * Store kunci-nilai yang dipakai seluruh aplikasi — bentuknya sama
  * dengan KeyValueStore di summarySnapshots.ts / notificationState.ts,
  * jadi pemanggil lama cukup mengganti `AsyncStorage` dengan ini.
@@ -142,4 +182,6 @@ async function kvSet(key: string, value: string): Promise<void> {
 export const sqliteStore = {
   getItem: kvGet,
   setItem: kvSet,
+  claimKey: kvClaim,
+  clearClaimKeys: kvClearClaims,
 };
