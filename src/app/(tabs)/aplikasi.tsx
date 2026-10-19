@@ -58,15 +58,28 @@ export default function AplikasiScreen() {
           <CustomRangePicker range={customRange} onApply={setCustomRange} />
         ) : null}
 
-        <TextInput
-          style={styles.search}
-          value={cari}
-          onChangeText={setCari}
-          placeholder="Cari aplikasi…"
-          placeholderTextColor={colors.secondary}
-          returnKeyType="search"
-          accessibilityLabel="Cari aplikasi"
-        />
+        <View style={styles.searchWrap}>
+          <TextInput
+            style={styles.search}
+            value={cari}
+            onChangeText={setCari}
+            placeholder="Cari aplikasi…"
+            placeholderTextColor={colors.secondary}
+            returnKeyType="search"
+            accessibilityLabel="Cari aplikasi"
+          />
+          {cari !== '' ? (
+            <Pressable
+              style={styles.searchClear}
+              onPress={() => setCari('')}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Hapus pencarian"
+            >
+              <Text style={styles.searchClearText}>✕</Text>
+            </Pressable>
+          ) : null}
+        </View>
 
         <View style={styles.sortRow} accessibilityRole="tablist" accessibilityLabel="Urutkan aplikasi">
           {SORT_OPTIONS.map((opt) => {
@@ -142,13 +155,29 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     marginBottom: spacing.lg,
   },
-  search: {
-    ...typography.body,
+  searchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.surface,
     borderRadius: radius.pill,
     paddingHorizontal: spacing.lg,
+    marginTop: spacing.md,
+  },
+  search: {
+    ...typography.body,
+    flex: 1,
     paddingVertical: spacing.md,
     color: colors.ink,
+  },
+  searchClear: {
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  searchClearText: {
+    ...typography.body,
+    color: colors.secondary,
   },
   sortRow: {
     flexDirection: 'row',
