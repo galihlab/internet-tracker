@@ -36,9 +36,9 @@ import {
   type NotificationFinding,
 } from './notifications';
 import {
+  claimFiredKey,
   loadNotificationState,
   markDailySummarySent,
-  markNotificationsFired,
 } from './notificationState';
 import { sendLocalNotification } from './notify';
 import type { StoredSettings } from './storage';
@@ -181,33 +181,41 @@ export async function runNotificationChecks(
   }
 
   if (temuan.length > 0) {
-    // Entri dulu (catatan durable), lalu ping best-effort, lalu tandai
-    // berbunyi — urutan ini menjaga invarian satu-entri-per-kejadian
-    // walau pengiriman gagal.
-    await addAlertEntries(
-      temuan.map((t) => ({
-        id: t.dedupKey,
-        kind: t.kind,
-        dateISO: t.dateISO,
-        title: t.title,
-        detail: t.detail,
-        thresholdPercent: t.thresholdPercent,
-      })),
-      now,
-    );
+    // Exactly-once: klaim tiap kunci dedup DULU (atomik, lintas
+    // pelari), baru pemenang yang dicatat + dikirim. Tanpa ini, effect
+    // foreground dan tugas latar yang berjalan bersamaan sama-sama
+    // lolos cek-di-awal lalu sama-sama mengirim (notifikasi ganda).
+    const menang: NotificationFinding[] = [];
     for (const t of temuan) {
-      await sendLocalNotification(t.title, t.detail);
+      if (await claimFiredKey(sqliteStore, t.dedupKey)) menang.push(t);
     }
-    await markNotificationsFired(
-      sqliteStore,
-      temuan.map((t) => t.dedupKey),
-    );
-    hasil.fired = temuan;
+    if (menang.length > 0) {
+      // Entri dulu (catatan durable), lalu ping best-effort — urutan
+      // ini menjaga invarian satu-entri-per-kejadian walau pengiriman
+      // gagal. Klaim sudah dicatat oleh claimFiredKey.
+      await addAlertEntries(
+        menang.map((t) => ({
+          id: t.dedupKey,
+          kind: t.kind,
+          dateISO: t.dateISO,
+          title: t.title,
+          detail: t.detail,
+          thresholdPercent: t.thresholdPercent,
+        })),
+        now,
+      );
+      for (const t of menang) {
+        await sendLocalNotification(t.title, t.detail);
+      }
+      hasil.fired = menang;
+    }
   }
 
   // Ringkasan harian (sekali sehari, hanya bila benar-benar terkirim).
   // Sisa kuota dihitung hanya bila ada paket; tanpa paket, ringkasan
-  // tetap terkirim dengan angka internet hari ini.
+  // tetap terkirim dengan angka internet hari ini. Klaim atomik
+  // menutup balapan yang sama seperti temuan di atas.
+  const tanggalRingkasan = dateISOOf(now);
   if (
     data.daily &&
     shouldSendDailySummary({
@@ -215,7 +223,8 @@ export async function runNotificationChecks(
       dailySummaryHour: settings.dailySummaryHour,
       lastSentDateISO: notifState.lastDailySummaryDateISO,
       now,
-    })
+    }) &&
+    (await claimFiredKey(sqliteStore, `ringkasan-harian:${tanggalRingkasan}`))
   ) {
     const isi = dailySummaryContent({
       todayMobileBytes: data.daily.todayMobileBytes,
