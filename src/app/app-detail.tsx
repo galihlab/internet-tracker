@@ -1,5 +1,13 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import Svg, { Rect, Text as SvgText } from 'react-native-svg';
@@ -10,12 +18,13 @@ import {
   compareWithPrevious,
   type AppDailyPoint,
 } from '../lib/appUsage';
-import { formatBytes, formatCapWaktu, formatPercent } from '../lib/format';
+import { formatBytes, formatCapWaktu, formatPercent, GB } from '../lib/format';
 import { useSettings } from '../lib/settings';
 import {
   getAppUsageForRange,
   getDailyAppBuckets,
   getDeviceUsageForRange,
+  periodToRange,
   type AppUsage,
 } from '../lib/usageStats';
 import { packageWindow } from '../lib/windows';
@@ -53,15 +62,80 @@ function teksPerbandingan(sekarang: number, sebelumnya: AppUsage | null): string
 }
 
 /**
+ * Kartu pengingat batas harian untuk satu aplikasi (v1.3.0): simpan
+ * batas GB atau hapus batas yang ada. Ini PENGINGAT, bukan pembatasan —
+ * Android tidak mengizinkan aplikasi pihak ketiga membatasi aplikasi
+ * lain. `key={packageName}` dari pemanggil me-remount form saat
+ * aplikasi yang dilihat berganti.
+ */
+function BatasAplikasiCard({ packageName, label }: { packageName: string; label: string }) {
+  const { settings, setPerAppBudget, removePerAppBudget } = useSettings();
+  const batasTersimpan = settings.perAppBudgets.find((b) => b.packageName === packageName);
+  const [batasGB, setBatasGB] = useState(
+    batasTersimpan ? String(batasTersimpan.budgetBytes / GB) : '',
+  );
+  const [pesan, setPesan] = useState<string | null>(null);
+
+  const simpan = () => {
+    const gb = Number(batasGB.replace(',', '.'));
+    if (!Number.isFinite(gb) || gb <= 0) {
+      setPesan('Isi batas dengan angka lebih dari 0 (GB).');
+      return;
+    }
+    setPesan(null);
+    void setPerAppBudget({ packageName, label, budgetBytes: gb * GB }).then(() =>
+      setPesan('Batas tersimpan ✓'),
+    );
+  };
+
+  const hapus = () => {
+    void removePerAppBudget(packageName).then(() => {
+      setBatasGB('');
+      setPesan('Batas dihapus.');
+    });
+  };
+
+  return (
+    <View style={styles.card}>
+      <Text style={styles.cardLabel}>Pengingat batas harian</Text>
+      <Text style={styles.cardRow}>
+        Bila {label} memakai lebih dari batas ini dalam sehari, beri tahu sekali hari itu.
+      </Text>
+      <TextInput
+        style={styles.input}
+        value={batasGB}
+        onChangeText={setBatasGB}
+        placeholder="Mis. 2"
+        placeholderTextColor={colors.secondary}
+        keyboardType="decimal-pad"
+        accessibilityLabel={`Batas harian ${label} dalam GB`}
+      />
+      {pesan ? <Text style={styles.pesan}>{pesan}</Text> : null}
+      <Pressable style={styles.saveButton} onPress={simpan} hitSlop={4}>
+        <Text style={styles.saveButtonText}>Simpan batas</Text>
+      </Pressable>
+      {batasTersimpan ? (
+        <Pressable style={styles.deleteButton} onPress={hapus} hitSlop={4}>
+          <Text style={styles.deleteButtonText}>Hapus batas</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+/**
  * Detail aplikasi (T3.4): ikon besar, total seluler dan Wi-Fi pada
- * jendela paket berjalan, grafik harian aplikasi itu selama paket
- * berjalan (batang bertumpuk seluler + Wi-Fi), pangsa terhadap total
- * seluler perangkat, dan perbandingan dengan periode sebelumnya.
+ * jendela paket berjalan (atau 30 hari terakhir bila tanpa paket),
+ * grafik harian aplikasi itu selama jendela berjalan (batang bertumpuk
+ * seluler + Wi-Fi), pangsa terhadap total seluler perangkat, dan
+ * perbandingan dengan periode sebelumnya.
  * Nama paket mentah tampil DI SINI — satu-satunya tempat di daftar
  * aplikasi yang menampilkannya.
  *
  * TIDAK ADA tombol blokir / batasi di layar ini: Android tidak
- * mengizinkan aplikasi pihak ketiga membatasi aplikasi lain.
+ * mengizinkan aplikasi pihak ketiga membatasi aplikasi lain. Yang ada
+ * hanya pengingat batas harian (v1.3.0): notifikasi sekali bila aplikasi
+ * ini melewati batas dalam sehari — bukan pembatasan pemakaian.
  */
 export default function AppDetailScreen() {
   const insets = useSafeAreaInsets();
@@ -71,11 +145,17 @@ export default function AppDetailScreen() {
   const { settings } = useSettings();
   const icons = useAppIcons(packageName === '' ? [] : [packageName]);
   const [data, setData] = useState<DetailData | null>(null);
+  // Jendela angka: paket berjalan bila ada paket, 30 hari terakhir bila
+  // tanpa paket. Dep effect memakai string tanggal (primitif stabil),
+  // bukan objek paket — supaya perubahan pengaturan lain tidak memicu
+  // query ulang.
+  const pkgStartDate = settings.pkg?.startDate ?? null;
 
   useEffect(() => {
     let aktif = true;
     async function muat() {
-      const jendela = packageWindow(settings.pkg.startDate);
+      const jendela =
+        pkgStartDate !== null ? packageWindow(pkgStartDate) : periodToRange('30d');
       const durasi = Math.max(0, jendela.end - jendela.start);
       const [appsSekarang, appsSebelumnya, perangkat, bucketHarian] = await Promise.all([
         getAppUsageForRange(jendela.start, jendela.end, 200),
@@ -104,9 +184,14 @@ export default function AppDetailScreen() {
     return () => {
       aktif = false;
     };
-  }, [packageName, settings.pkg.startDate]);
+  }, [packageName, pkgStartDate]);
 
   const label = labelParam || data?.sekarang?.label || packageName;
+  // Frasa jendela untuk salinan layar ("pada paket berjalan" /
+  // "dalam 30 hari terakhir").
+  const frasa = pkgStartDate !== null ? 'pada paket berjalan' : 'dalam 30 hari terakhir';
+  const frasaSelama =
+    pkgStartDate !== null ? 'selama paket berjalan' : 'dalam 30 hari terakhir';
   const maksHarian = Math.max(
     1,
     ...((data?.harian ?? []).map((d) => d.mobileBytes + d.wifiBytes) ?? [1]),
@@ -145,7 +230,7 @@ export default function AppDetailScreen() {
               <Text style={styles.empty}>
                 {data.tanpaNative
                   ? 'Data asli tidak tersedia — beri izin akses penggunaan untuk data asli.'
-                  : 'Tidak ada pemakaian tercatat untuk aplikasi ini pada jendela paket berjalan.'}
+                  : `Tidak ada pemakaian tercatat untuk aplikasi ini ${frasa}.`}
               </Text>
             ) : (
               <>
@@ -167,7 +252,7 @@ export default function AppDetailScreen() {
                     <Text style={styles.cardLabel}>Wi-Fi</Text>
                     <Text style={styles.cardBig}>{formatBytes(data.sekarang.wifiBytes)}</Text>
                     <Text style={styles.cardRow}>
-                      Total {formatBytes(data.sekarang.bytes)} pada paket berjalan
+                      Total {formatBytes(data.sekarang.bytes)} {frasa}
                     </Text>
                   </View>
                 </View>
@@ -180,7 +265,7 @@ export default function AppDetailScreen() {
                 </View>
 
                 <View style={styles.card}>
-                  <Text style={styles.cardLabel}>Pemakaian harian selama paket berjalan</Text>
+                  <Text style={styles.cardLabel}>Pemakaian harian {frasaSelama}</Text>
                   {data.harian.length === 0 ? (
                     <Text style={styles.cardRow}>Belum ada riwayat harian untuk aplikasi ini.</Text>
                   ) : (
@@ -261,6 +346,7 @@ export default function AppDetailScreen() {
                 </View>
               </>
             )}
+            <BatasAplikasiCard key={packageName} packageName={packageName} label={label} />
           </>
         )}
       </ScrollView>
@@ -339,6 +425,45 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.ink,
     marginTop: spacing.xs,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: colors.sageLight,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    minHeight: 44,
+    ...typography.body,
+    color: colors.ink,
+    marginTop: spacing.md,
+  },
+  pesan: {
+    ...typography.caption,
+    color: colors.secondary,
+    marginTop: spacing.sm,
+  },
+  saveButton: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.pill,
+    paddingVertical: spacing.md,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: spacing.md,
+  },
+  saveButtonText: {
+    ...typography.label,
+    color: colors.onPrimary,
+  },
+  deleteButton: {
+    alignSelf: 'flex-start',
+    minHeight: 44,
+    justifyContent: 'center',
+    marginTop: spacing.sm,
+  },
+  deleteButtonText: {
+    ...typography.label,
+    color: colors.critical,
   },
   snapshot: {
     ...typography.caption,
