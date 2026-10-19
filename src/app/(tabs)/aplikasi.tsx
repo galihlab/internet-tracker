@@ -3,6 +3,8 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import AppUsageList from '../../components/AppUsageList';
+import CustomRangePicker from '../../components/CustomRangePicker';
+import PeriodSegmentedControl from '../../components/PeriodSegmentedControl';
 import { formatBytes, formatCapWaktu } from '../../lib/format';
 import { filterApps, sortApps, type AppSortKey } from '../../lib/appUsage';
 import { useUsage } from '../../lib/usage';
@@ -25,7 +27,7 @@ const SORT_OPTIONS: { kunci: AppSortKey; label: string }[] = [
  */
 export default function AplikasiScreen() {
   const insets = useSafeAreaInsets();
-  const { period, summary, periodApps, loading } = useUsage();
+  const { period, setPeriod, customRange, setCustomRange, summary, periodApps, loading } = useUsage();
   const [cari, setCari] = useState('');
   const [urut, setUrut] = useState<AppSortKey>('mobile');
 
@@ -47,9 +49,14 @@ export default function AplikasiScreen() {
       >
         <Text style={styles.title}>Aplikasi</Text>
         <Text style={styles.subtitle}>
-          {periodLabel(period)}
+          {periodLabel(period, customRange)}
           {summary ? ` · total ${formatBytes(totalPerangkat)}` : ''}
         </Text>
+
+        <PeriodSegmentedControl value={period} onChange={setPeriod} />
+        {period === 'custom' ? (
+          <CustomRangePicker range={customRange} onApply={setCustomRange} />
+        ) : null}
 
         <TextInput
           style={styles.search}
