@@ -102,7 +102,7 @@ function MiniRing({ percent }: { percent: number }) {
   );
 }
 
-/** Ikon sinyal kecil di dalam chip "Kuota, Terkendali". */
+/** Ikon sinyal kecil di dalam chip "Internet, Terkendali". */
 function SignalIcon() {
   return (
     <Svg width={16} height={16} viewBox="0 0 16 16" fill={colors.primary}>
@@ -242,11 +242,11 @@ export default function WelcomeScreen() {
             <Image
               source={require('../../assets/icon.png')}
               style={styles.logo}
-              accessibilityLabel="Logo Kuota Tracker"
+              accessibilityLabel="Logo Internet Tracker"
             />
             <View style={styles.chip}>
               <SignalIcon />
-              <Text style={styles.chipText}>Kuota, Terkendali</Text>
+              <Text style={styles.chipText}>Internet, Terkendali</Text>
             </View>
             <Text style={styles.title}>
               Tetap Terhubung,{'\n'}
@@ -380,7 +380,7 @@ export default function WelcomeScreen() {
           </View>
           <Text style={styles.promiseTitle}>Izin akses penggunaan</Text>
           <Text style={styles.promiseDesc}>
-            Untuk angka asli, Kuota Tracker perlu izin akses penggunaan. Izin ini hanya
+            Untuk angka asli, Internet Tracker perlu izin akses penggunaan. Izin ini hanya
             dipakai membaca pemakaian datamu di perangkat ini.
           </Text>
           <View style={styles.permissionBox}>
