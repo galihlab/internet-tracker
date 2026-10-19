@@ -31,7 +31,13 @@
       "expo-splash-screen",
       "expo-background-task",
       "expo-notifications",
-      "expo-sqlite"
+      "expo-sqlite",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Izinkan Kuota Tracker mengakses galeri untuk foto profil."
+        }
+      ]
     ],
     "scheme": "kuotatracker",
     "slug": "kuota-tracker",
@@ -41,7 +47,7 @@
       "resizeMode": "contain"
     },
     "userInterfaceStyle": "light",
-    "version": "1.0.5",
+    "version": "1.1.0",
     "web": {
       "favicon": "./assets/favicon.png"
     }
