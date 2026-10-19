@@ -1,4 +1,4 @@
-# Kuota Tracker
+# Internet Tracker
 
 [![Android release](https://github.com/galihlab/kuota-tracker/actions/workflows/android-release.yml/badge.svg)](https://github.com/galihlab/kuota-tracker/actions/workflows/android-release.yml)
 [![Latest release](https://img.shields.io/github/v/release/galihlab/kuota-tracker)](https://github.com/galihlab/kuota-tracker/releases)
@@ -12,13 +12,17 @@ on the phone. No server, no analytics.
 
 ## Features
 
-- **Home** — active package remaining quota, today's usage, forecast
-  (enough / tight / critical), and the top three apps. Your profile
-  photo (set in Settings) shows as the header avatar.
-- **Statistics** — daily usage bar chart (mobile + Wi-Fi), cumulative
-  usage vs. the package's ideal-pace line, full-day average, heaviest
-  day, and top app per period. Periods: today, 7 days, 30 days, or a
-  custom date range (up to 30 days back).
+- **Home** — total internet today (mobile + Wi-Fi) with the split,
+  yesterday's total for reference, the 7-day stacked chart, the top
+  three apps by total internet, and a "Paket seluler" section (remaining
+  quota + forecast). Your profile photo (set in Settings) shows as the
+  header avatar.
+- **Statistics** — daily usage bar chart (mobile + Wi-Fi stacked; tap a
+  bar for that day's detail: mobile, Wi-Fi, total, top app), cumulative
+  total-internet line, cumulative mobile vs. the package's ideal-pace
+  line, full-day average, heaviest day, and top app per period.
+  Periods: today, 7 days, 30 days, or a custom date range (up to 30
+  days back).
 - **Apps** — per-app usage inside the running package window, with the
   same period picker (today / 7 / 30 days / custom range).
 - **Settings** — profile (photo + name, saved per section), active
@@ -52,7 +56,7 @@ npx expo run:android
 ```
 
 On first launch, tap **Open permission settings**, then enable
-Kuota Tracker in System Settings › Usage access. Without this
+Internet Tracker in System Settings › Usage access. Without this
 permission no real numbers can be read.
 
 ## Test
