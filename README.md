@@ -1,14 +1,12 @@
 # Internet Tracker
 
-[![Android release](https://github.com/galihlab/kuota-tracker/actions/workflows/android-release.yml/badge.svg)](https://github.com/galihlab/kuota-tracker/actions/workflows/android-release.yml)
-[![Latest release](https://img.shields.io/github/v/release/galihlab/kuota-tracker)](https://github.com/galihlab/kuota-tracker/releases)
+[![Android release](https://github.com/galihlab/internet-tracker/actions/workflows/android-release.yml/badge.svg)](https://github.com/galihlab/internet-tracker/actions/workflows/android-release.yml)
+[![Latest release](https://img.shields.io/github/v/release/galihlab/internet-tracker)](https://github.com/galihlab/internet-tracker/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Platform: Android](https://img.shields.io/badge/Platform-Android-3DDC84.svg)]
 [![Expo SDK 58](https://img.shields.io/badge/Expo%20SDK-58-000020.svg)]
 
-Android mobile-data quota tracker: remaining quota, per-app usage,
-run-out forecast, and alerts — from real on-device data, stored locally
-on the phone. No server, no analytics.
+Internet Tracker — total internet usage (mobile + Wi-Fi), per-app stats, mobile-quota tracking, run-out forecast, and alerts — from real on-device data, stored locally on the phone. No server, no analytics.
 
 ## Features
 
@@ -119,8 +117,8 @@ Without the secrets, the workflow only produces a debug APK.
 - `subscriberId: null` is used for mobile — applies to the default
   subscription.
 - Quota math is mobile-only by design — Wi-Fi never counts against
-  the package. Wi-Fi today is shown as an info line on the Home card
-  (and in the Statistics chart), so the split is visible.
+  the package. Wi-Fi is part of the total-internet numbers on Home
+  and in the Statistics chart, so the split is visible.
 - `NetworkStatsManager` numbers are counted since boot / system stats
   reset, not since the package was bought — that is why the package
   card uses a "since package start" window.
