@@ -56,6 +56,7 @@ export default function BerandaScreen() {
       >
         <HomeHeader
           userName={settings.userName}
+          profilePhoto={settings.profilePhoto}
           // Titik merah lonceng dari peringatan lonjakan belum dibaca (T2.6).
           unreadAlerts={unreadAlerts}
           onPressBell={() => router.push('/alerts')}
