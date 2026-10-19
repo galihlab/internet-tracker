@@ -27,7 +27,11 @@ import type { DailyBucket } from '../../modules/usage-stats';
 import {
   dailySummaryContent,
   detectCriticalForecast,
+  detectDailyInternetBudget,
+  detectOvernightUsage,
+  detectPerAppBudgets,
   detectThresholdCrossings,
+  overnightWindowFor,
   shouldSendDailySummary,
   type NotificationFinding,
 } from './notifications';
@@ -39,16 +43,38 @@ import {
 import { sendLocalNotification } from './notify';
 import type { StoredSettings } from './storage';
 import { loadSettings } from './storage';
-import { getUsageSummaryForRange, type UsageSummary } from './usageStats';
+import {
+  getDeviceUsageForRange,
+  getUsageSummaryForRange,
+  type UsageSummary,
+} from './usageStats';
 import { refreshDailyBuckets } from './dailyBuckets';
 import { dateISOOf, packageWindow } from './windows';
 
+/** Pemakaian hari ini untuk pemeriksaan notifikasi (seluler + Wi-Fi + per aplikasi). */
+export type NotificationDailyData = {
+  /** Seluler hari ini. */
+  todayMobileBytes: number;
+  /** Wi-Fi hari ini. */
+  todayWifiBytes: number;
+  /** Pemakaian per aplikasi hari ini (total seluler + Wi-Fi tiap aplikasi). */
+  perAppToday: { packageName: string; label: string; bytes: number }[];
+  /** Sumber data harian: 'native' = angka asli, selain itu tidak boleh memicu. */
+  source: 'native' | 'sample' | 'snapshot' | 'empty';
+  /** True bila data harian berasal dari snapshot tersimpan. */
+  fromSnapshot: boolean;
+};
+
 export type NotificationCheckData = {
   settings: StoredSettings;
-  /** Ringkasan pemakaian JENDELA PAKET (seluler sejak tanggal mulai). */
-  quotaSummary: UsageSummary;
-  /** Seluler hari ini (untuk isi ringkasan harian); null bila tidak ada. */
-  daily: { todayMobileBytes: number } | null;
+  /**
+   * Ringkasan pemakaian JENDELA PAKET (seluler sejak tanggal mulai).
+   * NULL bila tidak ada paket aktif — pemeriksaan ambang kuota +
+   * prediksi kritis dilewati, pengingat internet tetap jalan.
+   */
+  quotaSummary: UsageSummary | null;
+  /** Pemakaian hari ini (untuk ringkasan + pengingat internet); null bila tidak ada. */
+  daily: NotificationDailyData | null;
   /** Bucket harian untuk prediksi berbobot (T2.3). */
   buckets: DailyBucket[];
   now?: Date;
@@ -73,35 +99,86 @@ export async function runNotificationChecks(
   const { settings } = data;
   if (!settings.notificationsEnabled) return hasil;
   // Hanya data segar asli yang boleh memicu — lihat jaminan di atas.
-  if (data.quotaSummary.source !== 'native' || data.quotaSummary.fromSnapshot) {
-    return hasil;
-  }
+  // Tanpa paket, kesegaran dinilai dari data harian (bucket); dengan
+  // paket, dari ringkasan jendela paket seperti sebelumnya.
+  const segar =
+    data.quotaSummary !== null
+      ? data.quotaSummary.source === 'native' && !data.quotaSummary.fromSnapshot
+      : data.daily !== null &&
+        data.daily.source === 'native' &&
+        !data.daily.fromSnapshot;
+  if (!segar) return hasil;
   const now = data.now ?? new Date();
-  const pkg: QuotaPackage = settings.pkg;
-  const state = computeQuota(pkg, data.quotaSummary.mobileBytes, now, data.buckets);
+  const pkg: QuotaPackage | null = settings.pkg;
   const notifState = await loadNotificationState(sqliteStore);
 
-  // Ambang 50/80/100 + pengingat prediksi kritis.
-  const temuan: NotificationFinding[] = [
-    ...detectThresholdCrossings({
-      usedPercent: state.usedPercent,
-      enabledThresholds: settings.notificationThresholds,
+  const temuan: NotificationFinding[] = [];
+
+  // Ambang 50/80/100 + pengingat prediksi kritis — hanya bila ada
+  // paket aktif dan ringkasan jendela paketnya tersedia.
+  if (pkg !== null && data.quotaSummary !== null) {
+    const state = computeQuota(pkg, data.quotaSummary.mobileBytes, now, data.buckets);
+    temuan.push(
+      ...detectThresholdCrossings({
+        usedPercent: state.usedPercent,
+        enabledThresholds: settings.notificationThresholds,
+        firedIds: notifState.firedIds,
+        pkg,
+        usedBytes: state.usedBytes,
+        remainingBytes: state.remainingBytes,
+        now,
+      }),
+    );
+    const kritis = detectCriticalForecast({
+      forecast: state.forecast,
+      packageEnd: state.packageEnd,
+      remainingBytes: state.remainingBytes,
       firedIds: notifState.firedIds,
       pkg,
-      usedBytes: state.usedBytes,
-      remainingBytes: state.remainingBytes,
       now,
-    }),
-  ];
-  const kritis = detectCriticalForecast({
-    forecast: state.forecast,
-    packageEnd: state.packageEnd,
-    remainingBytes: state.remainingBytes,
-    firedIds: notifState.firedIds,
-    pkg,
-    now,
-  });
-  if (kritis) temuan.push(kritis);
+    });
+    if (kritis) temuan.push(kritis);
+  }
+
+  // Pengingat internet (v1.3.0) — tidak bergantung pada paket.
+  if (data.daily !== null) {
+    const totalHariIni = data.daily.todayMobileBytes + data.daily.todayWifiBytes;
+    const batasHarian = detectDailyInternetBudget({
+      todayTotalBytes: totalHariIni,
+      budgetBytes: settings.dailyInternetBudgetBytes,
+      firedIds: notifState.firedIds,
+      now,
+    });
+    if (batasHarian) temuan.push(batasHarian);
+    temuan.push(
+      ...detectPerAppBudgets({
+        perAppToday: data.daily.perAppToday,
+        budgets: settings.perAppBudgets,
+        firedIds: notifState.firedIds,
+        now,
+      }),
+    );
+
+    // Pemakaian malam: jendela 00:00–06:00 yang baru berakhir, dihitung
+    // dari query native langsung (bukan bucket harian — bucket tidak
+    // punya resolusi jam). Query dilewati bila malam itu sudah
+    // dilaporkan, atau bila pengingat malam dimatikan.
+    if (settings.overnightAlertEnabled) {
+      const jendela = overnightWindowFor(now);
+      const kunciMalam = jendela ? `pemakaian-malam:${jendela.nightDateISO}` : null;
+      if (jendela !== null && kunciMalam !== null && !notifState.firedIds.includes(kunciMalam)) {
+        const malam = await getDeviceUsageForRange(jendela.start, jendela.end);
+        if (malam.source === 'native') {
+          const semalam = detectOvernightUsage({
+            nightTotalBytes: malam.mobileBytes + malam.wifiBytes,
+            firedIds: notifState.firedIds,
+            now,
+          });
+          if (semalam) temuan.push(semalam);
+        }
+      }
+    }
+  }
 
   if (temuan.length > 0) {
     // Entri dulu (catatan durable), lalu ping best-effort, lalu tandai
@@ -129,6 +206,8 @@ export async function runNotificationChecks(
   }
 
   // Ringkasan harian (sekali sehari, hanya bila benar-benar terkirim).
+  // Sisa kuota dihitung hanya bila ada paket; tanpa paket, ringkasan
+  // tetap terkirim dengan angka internet hari ini.
   if (
     data.daily &&
     shouldSendDailySummary({
@@ -140,7 +219,12 @@ export async function runNotificationChecks(
   ) {
     const isi = dailySummaryContent({
       todayMobileBytes: data.daily.todayMobileBytes,
-      remainingBytes: state.remainingBytes,
+      todayWifiBytes: data.daily.todayWifiBytes,
+      todayTotalBytes: data.daily.todayMobileBytes + data.daily.todayWifiBytes,
+      remainingBytes:
+        pkg !== null && data.quotaSummary !== null
+          ? Math.max(0, pkg.quotaBytes - data.quotaSummary.mobileBytes)
+          : 0,
       pkg,
     });
     const terkirim = await sendLocalNotification(isi.title, isi.body);
@@ -162,17 +246,30 @@ export async function runBackgroundNotificationCheck(): Promise<void> {
   const settings = await loadSettings();
   if (!settings.notificationsEnabled) return;
   const now = new Date();
-  const jendela = packageWindow(settings.pkg.startDate);
+  const pkg = settings.pkg;
+  const hariIniISO = dateISOOf(now);
+  // Tanpa paket: ringkasan jendela paket dilewati (null) — pengingat
+  // internet tetap jalan dari bucket harian.
+  const jendela = pkg !== null ? packageWindow(pkg.startDate) : null;
   const [quotaSummary, harian] = await Promise.all([
-    getUsageSummaryForRange(jendela.start, jendela.end),
+    jendela !== null
+      ? getUsageSummaryForRange(jendela.start, jendela.end)
+      : Promise.resolve(null),
     refreshDailyBuckets(now),
   ]);
-  const hariIniISO = dateISOOf(now);
   const bucketHariIni = harian.buckets.find((b) => b.dateISO === hariIniISO);
   await runNotificationChecks({
     settings,
     quotaSummary,
-    daily: { todayMobileBytes: bucketHariIni?.mobileBytes ?? 0 },
+    daily: {
+      todayMobileBytes: bucketHariIni?.mobileBytes ?? 0,
+      todayWifiBytes: bucketHariIni?.wifiBytes ?? 0,
+      perAppToday: harian.perAppDaily
+        .filter((b) => b.dateISO === hariIniISO)
+        .map((b) => ({ packageName: b.packageName, label: b.label, bytes: b.bytes })),
+      source: harian.source,
+      fromSnapshot: harian.fromSnapshot,
+    },
     buckets: harian.buckets,
     now,
   });
