@@ -13,16 +13,23 @@ on the phone. No server, no analytics.
 ## Features
 
 - **Home** — active package remaining quota, today's usage, forecast
-  (enough / tight / critical), and the top three apps.
+  (enough / tight / critical), and the top three apps. Your profile
+  photo (set in Settings) shows as the header avatar.
 - **Statistics** — daily usage bar chart (mobile + Wi-Fi), cumulative
   usage vs. the package's ideal-pace line, full-day average, heaviest
-  day, and top app per period.
-- **Apps** — per-app usage inside the running package window.
-- **Settings** — name, active package + package history, notifications
-  (50/80/100% thresholds, daily summary), and permission status.
+  day, and top app per period. Periods: today, 7 days, 30 days, or a
+  custom date range (up to 30 days back).
+- **Apps** — per-app usage inside the running package window, with the
+  same period picker (today / 7 / 30 days / custom range).
+- **Settings** — profile (photo + name, saved per section), active
+  package + package history, notifications (50/80/100% thresholds,
+  daily summary), threshold-fired status for the running package, and
+  permission status.
 - **Notifications** — threshold alerts (once per package), usage-spike
   alerts, critical-forecast reminders, and a daily summary via a
   system-scheduled background task.
+- **Onboarding** — welcome carousel with the app logo, first-package
+  setup, and usage-access permission.
 
 ## How data works
 
@@ -81,20 +88,23 @@ Without the secrets, the workflow only produces a debug APK.
   `(tabs)/statistik` (Statistics), `(tabs)/aplikasi` (Apps),
   `(tabs)/pengaturan` (Settings) tabs.
 - `src/components/` — UI cards and components (quota card, charts,
-  app lists, tab bar, header).
+  app lists, tab bar, header, custom date-range picker).
 - `src/lib/` — logic: `quota` (remaining/forecast/status),
   `usageStats` (native-module bridge), `dailyBuckets` (daily history),
   `summarySnapshots` (stored-number snapshots), `settings`/`storage`
-  (settings), `notify` + `notificationTask` (background alerts),
-  `format`, `windows`, `appIcons`, `appUsage`, `db` (SQLite local DB —
-  the single storage backend, one-time migration from AsyncStorage).
+  (settings, incl. profile photo), `notify` + `notificationTask`
+  (background alerts), `format`, `windows`, `appIcons`, `appUsage`,
+  `db` (SQLite local DB — the single storage backend, one-time
+  migration from AsyncStorage).
 - `src/theme/` — design tokens (colors, typography, radius, spacing).
 - `modules/usage-stats/` — local native module (Expo Modules API,
   Android only): reads `NetworkStatsManager` (device totals + per-UID
   per-app).
 - `plugins/` — Expo config plugins: `PACKAGE_USAGE_STATS` permission,
-  bundle-in-debug, minify + R8 keep rules (Room/WorkManager),
-  ABI splits.
+  `QUERY_ALL_PACKAGES` (Android 11+ package visibility — without it,
+  `getPackagesForUid()` returns `null` for most third-party apps and
+  their buckets are dropped from the per-app list), bundle-in-debug,
+  minify + R8 keep rules (Room/WorkManager), ABI splits.
 
 ## Implementation notes
 
@@ -104,6 +114,9 @@ Without the secrets, the workflow only produces a debug APK.
   estimate Android allows, not a forensic audit.
 - `subscriberId: null` is used for mobile — applies to the default
   subscription.
+- Quota math is mobile-only by design — Wi-Fi never counts against
+  the package. Wi-Fi today is shown as an info line on the Home card
+  (and in the Statistics chart), so the split is visible.
 - `NetworkStatsManager` numbers are counted since boot / system stats
   reset, not since the package was bought — that is why the package
   card uses a "since package start" window.
