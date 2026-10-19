@@ -3,6 +3,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-nat
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Line, Polyline, Rect, Text as SvgText } from 'react-native-svg';
 import AppIcon from '../../components/AppIcon';
+import CustomRangePicker from '../../components/CustomRangePicker';
 import PeriodSegmentedControl from '../../components/PeriodSegmentedControl';
 import StatCards from '../../components/StatCards';
 import { useAppIcons } from '../../lib/appIcons';
@@ -34,10 +35,13 @@ export default function StatistikScreen() {
   const insets = useSafeAreaInsets();
   const { settings } = useSettings();
   const pkg = settings.pkg;
-  const { period, setPeriod, summary, periodApps, buckets, bucketsMeta, loading } = useUsage();
+  const { period, setPeriod, customRange, setCustomRange, summary, periodApps, buckets, bucketsMeta, loading } = useUsage();
   const icons = useAppIcons(periodApps.map((a) => a.packageName));
 
-  const rentang = useMemo(() => periodToRange(period), [period]);
+  const rentang = useMemo(
+    () => periodToRange(period, undefined, customRange),
+    [period, customRange],
+  );
   const hariIniISO = dateISOOf(new Date());
 
   // Bucket dalam periode terpilih, urut naik menurut tanggal.
@@ -130,9 +134,12 @@ export default function StatistikScreen() {
         ]}
       >
         <Text style={styles.title}>Statistik</Text>
-        <Text style={styles.subtitle}>{periodLabel(period)}</Text>
+        <Text style={styles.subtitle}>{periodLabel(period, customRange)}</Text>
 
         <PeriodSegmentedControl value={period} onChange={setPeriod} />
+        {period === 'custom' ? (
+          <CustomRangePicker range={customRange} onApply={setCustomRange} />
+        ) : null}
 
         {summary?.fromSnapshot ? (
           <Text style={styles.snapshot}>
@@ -287,7 +294,7 @@ export default function StatistikScreen() {
             </View>
 
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Rincian {periodLabel(period).toLowerCase()}</Text>
+              <Text style={styles.cardTitle}>Rincian {periodLabel(period, customRange).toLowerCase()}</Text>
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Total</Text>
                 <Text style={styles.detailValue}>{formatBytes(summary.totalBytes)}</Text>
