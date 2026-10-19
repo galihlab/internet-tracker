@@ -77,6 +77,7 @@ function dayLabel(date: Date): string {
 async function loadDailyUsage(): Promise<{
   daily: DailyUsage;
   buckets: DailyBucket[];
+  perAppDaily: DailyAppBucket[];
   bucketsMeta: BucketsMeta;
 }> {
   const now = new Date();
@@ -111,6 +112,7 @@ async function loadDailyUsage(): Promise<{
       fromSnapshot: data.fromSnapshot,
     },
     buckets: data.buckets,
+    perAppDaily: data.perAppDaily,
     bucketsMeta: {
       firstCollectedAt: data.firstCollectedAt,
       updatedAt: data.updatedAt,
@@ -147,6 +149,8 @@ type UsageContextValue = {
   daily: DailyUsage | null;
   /** Daftar bucket harian (30 hari) — bahan prediksi berbobot (T2.3). */
   buckets: DailyBucket[];
+  /** Bucket per aplikasi per hari (30 hari) — bahan rincian hari Statistik (v1.2.0). */
+  perAppDaily: DailyAppBucket[];
   /** Meta pengumpulan bucket harian (T3.6). */
   bucketsMeta: BucketsMeta | null;
   /** Daftar per aplikasi LENGKAP untuk periode terpilih (T3.2), terpecah
@@ -181,6 +185,7 @@ export function UsageProvider({ children }: { children: ReactNode }) {
   const [quotaSummary, setQuotaSummary] = useState<UsageSummary | null>(null);
   const [daily, setDaily] = useState<DailyUsage | null>(null);
   const [buckets, setBuckets] = useState<DailyBucket[]>([]);
+  const [perAppDaily, setPerAppDaily] = useState<DailyAppBucket[]>([]);
   const [bucketsMeta, setBucketsMeta] = useState<BucketsMeta | null>(null);
   const [periodApps, setPeriodApps] = useState<AppUsage[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -272,10 +277,11 @@ export function UsageProvider({ children }: { children: ReactNode }) {
   // provider dipasang, dan dimuat ulang bersama `refresh`.
   useEffect(() => {
     let aktif = true;
-    void loadDailyUsage().then(({ daily: d, buckets: b, bucketsMeta: m }) => {
+    void loadDailyUsage().then(({ daily: d, buckets: b, perAppDaily: pad, bucketsMeta: m }) => {
       if (aktif) {
         setDaily(d);
         setBuckets(b);
+        setPerAppDaily(pad);
         setBucketsMeta(m);
         void evaluateSpikes(d, b);
       }
@@ -376,6 +382,7 @@ export function UsageProvider({ children }: { children: ReactNode }) {
       quotaSummary,
       daily,
       buckets,
+      perAppDaily,
       bucketsMeta,
       periodApps,
       alerts,
@@ -394,6 +401,7 @@ export function UsageProvider({ children }: { children: ReactNode }) {
       quotaSummary,
       daily,
       buckets,
+      perAppDaily,
       bucketsMeta,
       periodApps,
       alerts,
