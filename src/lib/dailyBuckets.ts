@@ -45,8 +45,8 @@ export type DailyBucketsData = {
 const SNAPSHOT_KEY = '@kuota-tracker:daily-buckets:v1';
 /** Rentang bucket perangkat yang di-query tiap segar: 30 hari terakhir. */
 const DEVICE_BUCKET_DAYS = 30;
-/** Rentang bucket per aplikasi yang di-query tiap segar: 7 hari terakhir. */
-const APP_BUCKET_DAYS = 7;
+/** Rentang bucket per aplikasi yang di-query tiap segar: 30 hari terakhir. */
+const APP_BUCKET_DAYS = 30;
 /** Batas aplikasi pada bucket per aplikasi. */
 const APP_BUCKET_LIMIT = 10;
 
