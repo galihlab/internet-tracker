@@ -10,21 +10,21 @@ import { colors, radius, spacing, typography } from '../theme';
 type Props = {
   /** Tiga aplikasi teratas pada periode paket berjalan. */
   perApp: AppUsage[];
-  /** Total SELULER periode berjalan — penyebut persen. */
-  mobileTotalBytes: number;
+  /** Total INTERNET periode berjalan (seluler + Wi-Fi) — penyebut persen. */
+  totalBytes: number;
   onPressApp: (app: AppUsage) => void;
   onSeeAll: () => void;
 };
 
 /**
- * Ringkasan pemakaian aplikasi di Beranda (T1.9 + T3.1 + T3.3): tiga
- * aplikasi teratas dengan IKON ASLI dari PackageManager (fallback
- * monogram generik bila ikon tidak tersedia — bukan logo palsu), nama,
- * progress bar, ukuran SELULER, persen terhadap total seluler periode
- * berjalan, plus "Lihat Semua". Baris "Sistem dan lainnya" dikecualikan
- * — bukan aplikasi yang bisa dibuka detailnya.
+ * Ringkasan pemakaian aplikasi di Beranda (v1.2.0, internet-first):
+ * tiga aplikasi teratas menurut TOTAL internet, dengan IKON ASLI dari
+ * PackageManager (fallback monogram generik bila ikon tidak tersedia —
+ * bukan logo palsu), nama, progress bar, ukuran TOTAL, persen terhadap
+ * total internet periode berjalan, plus "Lihat Semua". Baris "Sistem dan
+ * lainnya" dikecualikan — bukan aplikasi yang bisa dibuka detailnya.
  */
-export default function TopAppsSummary({ perApp, mobileTotalBytes, onPressApp, onSeeAll }: Props) {
+export default function TopAppsSummary({ perApp, totalBytes, onPressApp, onSeeAll }: Props) {
   const top = perApp.filter((a) => a.packageName !== SYSTEM_ROW_PACKAGE).slice(0, 3);
   const icons = useAppIcons(top.map((a) => a.packageName));
 
@@ -46,8 +46,7 @@ export default function TopAppsSummary({ perApp, mobileTotalBytes, onPressApp, o
         <Text style={styles.empty}>Belum ada pemakaian aplikasi pada periode ini.</Text>
       ) : (
         top.map((app) => {
-          const percent =
-            mobileTotalBytes > 0 ? Math.round((app.mobileBytes / mobileTotalBytes) * 100) : 0;
+          const percent = totalBytes > 0 ? Math.round((app.bytes / totalBytes) * 100) : 0;
           return (
             <Pressable
               key={app.packageName}
@@ -62,16 +61,16 @@ export default function TopAppsSummary({ perApp, mobileTotalBytes, onPressApp, o
                   <Text style={styles.name} numberOfLines={1}>
                     {app.label}
                   </Text>
-                  <Text style={styles.size}>{formatBytes(app.mobileBytes)}</Text>
+                  <Text style={styles.size}>{formatBytes(app.bytes)}</Text>
                 </View>
                 <View style={styles.barWrap}>
                   <AnimatedBar
                     percent={percent}
                     height={6}
-                    accessibilityLabel={`${app.label}, ${percent}% dari total seluler`}
+                    accessibilityLabel={`${app.label}, ${percent}% dari total internet`}
                   />
                 </View>
-                <Text style={styles.percent}>{formatPercent(app.mobileBytes, mobileTotalBytes)} dari total seluler</Text>
+                <Text style={styles.percent}>{formatPercent(app.bytes, totalBytes)} dari total internet</Text>
               </View>
               <Text style={styles.chevron}>›</Text>
             </Pressable>
