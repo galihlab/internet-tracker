@@ -23,7 +23,7 @@ import { useSettings } from './settings';
 import type { QuotaPackage } from './quota';
 import { refreshDailyBuckets } from './dailyBuckets';
 import type { DailyAppBucket, DailyBucket } from '../../modules/usage-stats';
-import { dateISOOf, packageWindow } from './windows';
+import { dateISOOf, packageWindow, type CustomRange } from './windows';
 import { addAlerts, loadAlerts, markAllAlertsRead, type Alert } from './alerts';
 import { detectSpikes } from './spike';
 import { runNotificationChecks } from './notificationChecks';
@@ -135,6 +135,10 @@ type UsageContextValue = {
   /** Periode yang dipakai bersama Beranda, Aplikasi, dan Statistik. */
   period: Period;
   setPeriod: (p: Period) => void;
+  /** Rentang tanggal custom untuk periode 'custom' (null bila belum dipilih). */
+  customRange: CustomRange | null;
+  /** Atur rentang custom sekaligus pindah ke periode 'custom'. */
+  setCustomRange: (r: CustomRange) => void;
   /** Ringkasan pemakaian untuk periode terpilih. */
   summary: UsageSummary | null;
   /** Ringkasan pemakaian sejak tanggal mulai paket (untuk kartu paket). */
@@ -172,6 +176,7 @@ export function UsageProvider({ children }: { children: ReactNode }) {
   const { settings } = useSettings();
   const pkg = settings.pkg;
   const [period, setPeriod] = useState<Period>('24h');
+  const [customRange, setCustomRangeState] = useState<CustomRange | null>(null);
   const [summary, setSummary] = useState<UsageSummary | null>(null);
   const [quotaSummary, setQuotaSummary] = useState<UsageSummary | null>(null);
   const [daily, setDaily] = useState<DailyUsage | null>(null);
@@ -179,6 +184,13 @@ export function UsageProvider({ children }: { children: ReactNode }) {
   const [bucketsMeta, setBucketsMeta] = useState<BucketsMeta | null>(null);
   const [periodApps, setPeriodApps] = useState<AppUsage[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
+
+  // Rentang custom sekaligus pindah ke periode 'custom' — dua setState
+  // ini di-batch React sehingga effect muat-ulang hanya jalan sekali.
+  const setCustomRange = useCallback((range: CustomRange) => {
+    setCustomRangeState(range);
+    setPeriod('custom');
+  }, []);
 
   /**
    * Evaluasi lonjakan (T2.6) dari data harian yang baru dimuat. Hanya
@@ -230,9 +242,9 @@ export function UsageProvider({ children }: { children: ReactNode }) {
       // Ringkasan paket memakai JENDELA PAKET (seluler sejak tanggal
       // mulai paket) — bukan jendela periode terpilih (T2.1).
       const paket = packageWindow(q.startDate);
-      const rentangPeriode = periodToRange(p);
+      const rentangPeriode = periodToRange(p, undefined, customRange);
       const [s, qs, ns, appsPeriode] = await Promise.all([
-        getUsageSummary(p),
+        getUsageSummary(p, customRange),
         getUsageSummaryForRange(paket.start, paket.end),
         getNativeStatus(),
         // Daftar lengkap periode terpilih (T3.2): hingga 200 aplikasi.
@@ -245,7 +257,7 @@ export function UsageProvider({ children }: { children: ReactNode }) {
     } finally {
       if (!silent) setLoading(false);
     }
-  }, []);
+  }, [customRange]);
 
   // Pengambilan data perangkat saat periode / paket berubah.
   // Pengecualian aturan set-state-in-effect yang ditargetkan: memuat data
@@ -358,6 +370,8 @@ export function UsageProvider({ children }: { children: ReactNode }) {
     () => ({
       period,
       setPeriod,
+      customRange,
+      setCustomRange,
       summary,
       quotaSummary,
       daily,
@@ -374,6 +388,8 @@ export function UsageProvider({ children }: { children: ReactNode }) {
     }),
     [
       period,
+      customRange,
+      setCustomRange,
       summary,
       quotaSummary,
       daily,
