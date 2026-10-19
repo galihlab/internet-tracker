@@ -49,6 +49,32 @@ export function parseDateISO(dateISO: string): Date {
  * Bila `now` sebelum tanggal mulai, akhir tetap `now` sehingga rentangnya
  * kosong — pemakaian paket nol dan status paket 'belum-mulai'.
  */
+export type CustomRange = {
+  startDateISO: string;
+  endDateISO: string;
+};
+
+/** Normalisasi rentang custom: tukar bila tanggal awal melewati tanggal akhir. */
+export function normalizeCustomRange(range: CustomRange): CustomRange {
+  if (range.startDateISO <= range.endDateISO) return range;
+  return { startDateISO: range.endDateISO, endDateISO: range.startDateISO };
+}
+
+/**
+ * Jendela [awal hari mulai, akhir hari selesai) untuk rentang custom —
+ * akhir dipotong di `now` supaya hari ini tidak mengarang sisa hari.
+ * Dipakai `periodToRange` untuk periode 'custom'.
+ */
+export function customRangeWindow(range: CustomRange, now: Date = new Date()): DataWindow {
+  const r = normalizeCustomRange(range);
+  const start = startOfDayMillis(parseDateISO(r.startDateISO));
+  const end = Math.min(
+    startOfDayMillis(parseDateISO(r.endDateISO)) + MS_PER_DAY,
+    now.getTime(),
+  );
+  return { start, end: Math.max(start, end) };
+}
+
 export function packageWindow(startDateISO: string, now: Date = new Date()): DataWindow {
   return { start: startOfDayMillis(parseDateISO(startDateISO)), end: now.getTime() };
 }
