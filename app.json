@@ -35,6 +35,8 @@
       [
         "expo-image-picker",
         {
+          "cameraPermission": false,
+          "microphonePermission": false,
           "photosPermission": "Izinkan Kuota Tracker mengakses galeri untuk foto profil."
         }
       ]
