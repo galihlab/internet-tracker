@@ -16,9 +16,9 @@ import {
   shouldSendDailySummary,
 } from '../notifications.ts';
 import {
+  claimFiredKey,
   loadNotificationState,
   markDailySummarySent,
-  markNotificationsFired,
   resetNotificationState,
 } from '../notificationState.ts';
 
@@ -320,16 +320,16 @@ test('ringkasan harian: isi selalu berangka (hari ini + sisa + nama paket)', () 
 
 // --- state pengiriman ----------------------------------------------------------
 
-test('state: awal kosong; tandai berbunyi menambah + dedup; reset mengosongkan', async () => {
+test('state: awal kosong; klaim menambah + menolak ganda; reset mengosongkan', async () => {
   const toko = tokoBaru();
   assert.deepEqual(await loadNotificationState(toko), {
     firedIds: [],
     lastDailySummaryDateISO: null,
   });
-  const s1 = await markNotificationsFired(toko, ['a', 'b']);
-  assert.deepEqual(s1.firedIds, ['a', 'b']);
-  const s2 = await markNotificationsFired(toko, ['b', 'c']);
-  assert.deepEqual(s2.firedIds, ['a', 'b', 'c']);
+  assert.equal(await claimFiredKey(toko, 'a'), true);
+  assert.equal(await claimFiredKey(toko, 'b'), true);
+  assert.equal(await claimFiredKey(toko, 'a'), false);
+  assert.deepEqual((await loadNotificationState(toko)).firedIds, ['a', 'b']);
   const s3 = await markDailySummarySent(toko, '2026-10-12');
   assert.equal(s3.lastDailySummaryDateISO, '2026-10-12');
   await resetNotificationState(toko);
