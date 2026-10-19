@@ -182,3 +182,21 @@ export function compareWithPrevious(
     naik: deltaBytes > 0 ? true : deltaBytes < 0 ? false : null,
   };
 }
+
+/**
+ * Aplikasi teratas pada satu tanggal dari bucket per aplikasi per hari
+ * (v1.2.0 — rincian hari di Statistik): entri dengan `bytes` terbesar
+ * pada tanggal itu. Null bila tidak ada bucket untuk tanggal itu
+ * (bucket per aplikasi hanya dikumpulkan 30 hari terakhir).
+ */
+export function topAppForDay(
+  buckets: DailyAppBucket[],
+  dateISO: string,
+): DailyAppBucket | null {
+  let teratas: DailyAppBucket | null = null;
+  for (const b of buckets) {
+    if (b.dateISO !== dateISO) continue;
+    if (!teratas || b.bytes > teratas.bytes) teratas = b;
+  }
+  return teratas;
+}
