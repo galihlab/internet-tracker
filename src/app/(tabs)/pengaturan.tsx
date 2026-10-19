@@ -275,7 +275,7 @@ function NotifikasiSection({
           : izinNotif === 'granted'
             ? 'Izin notifikasi sudah diberikan — peringatan tampil di bilah notifikasi.'
             : izinNotif === 'denied'
-              ? 'Izin notifikasi ditolak — aktifkan di Pengaturan sistem › Aplikasi › Kuota Tracker › Notifikasi.'
+              ? 'Izin notifikasi ditolak — aktifkan di Pengaturan sistem › Aplikasi › Internet Tracker › Notifikasi.'
               : 'Izin notifikasi belum diminta — peringatan hanya tampil di daftar dalam aplikasi sampai izin diberikan.'}
       </Text>
       {izinNotif !== 'granted' ? (
@@ -544,7 +544,7 @@ export default function PengaturanScreen() {
             <Text style={styles.textButtonText}>Lihat layar welcome lagi</Text>
           </Pressable>
           <Text style={styles.version}>
-            Kuota Tracker · versi {Constants.expoConfig?.version ?? '—'}
+            Internet Tracker · versi {Constants.expoConfig?.version ?? '—'}
           </Text>
         </View>
       </ScrollView>
