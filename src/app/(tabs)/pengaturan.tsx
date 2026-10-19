@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
+  Alert,
   Image,
   Pressable,
   ScrollView,
@@ -17,7 +18,7 @@ import DateTimePicker, {
 } from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import PackageHistoryList from '../../components/PackageHistoryList';
-import { formatCapWaktu, formatDateID, formatGB } from '../../lib/format';
+import { formatCapWaktu, formatDateID, formatGB, GB } from '../../lib/format';
 import { computeQuota, operatorLabel, packageLastDay } from '../../lib/quota';
 import { useSettings } from '../../lib/settings';
 import { useUsage } from '../../lib/usage';
@@ -31,7 +32,7 @@ import {
 import { packageSignature } from '../../lib/notifications';
 import { loadNotificationState, type NotificationState } from '../../lib/notificationState';
 import { sqliteStore } from '../../lib/db';
-import { NOTIFICATION_THRESHOLD_OPTIONS } from '../../lib/storage';
+import { NOTIFICATION_THRESHOLD_OPTIONS, type PerAppBudget } from '../../lib/storage';
 import { colors, layout, radius, spacing, typography } from '../../theme';
 
 /** Batas ukuran foto profil (data URI) — foto dipangkas 1:1 kualitas 0.5. */
@@ -370,6 +371,132 @@ function NotifikasiSection({
 }
 
 /**
+ * Seksi Pengingat internet (v1.3.0): batas harian total internet,
+ * pengingat pemakaian malam, dan daftar batas per aplikasi (diatur
+ * dari detail aplikasi). Batas harian + saklar malam dalam SATU draf
+ * dengan tombol "Simpan pengingat"; hapus batas per aplikasi adalah
+ * aksi langsung. Tidak bergantung pada paket — jalan tanpa paket aktif.
+ */
+function PengingatInternetSection({
+  tersimpan,
+  perAppBudgets,
+  onSimpan,
+  onHapusBatasAplikasi,
+}: {
+  tersimpan: { dailyInternetBudgetBytes: number; overnightAlertEnabled: boolean };
+  perAppBudgets: PerAppBudget[];
+  onSimpan: (draf: {
+    dailyInternetBudgetBytes: number;
+    overnightAlertEnabled: boolean;
+  }) => Promise<void>;
+  onHapusBatasAplikasi: (packageName: string) => Promise<void>;
+}) {
+  const [batasGB, setBatasGB] = useState(
+    tersimpan.dailyInternetBudgetBytes > 0
+      ? String(tersimpan.dailyInternetBudgetBytes / GB)
+      : '',
+  );
+  const [malam, setMalam] = useState(tersimpan.overnightAlertEnabled);
+  const [menyimpan, setMenyimpan] = useState(false);
+  const [pesan, setPesan] = useState<string | null>(null);
+
+  const kotor =
+    batasGB !==
+      (tersimpan.dailyInternetBudgetBytes > 0
+        ? String(tersimpan.dailyInternetBudgetBytes / GB)
+        : '') || malam !== tersimpan.overnightAlertEnabled;
+
+  const simpan = () => {
+    const gb = batasGB.trim() === '' ? 0 : Number(batasGB.replace(',', '.'));
+    if (!Number.isFinite(gb) || gb < 0) {
+      setPesan('Isi batas harian dengan angka 0 ke atas (GB), atau kosongkan untuk mematikan.');
+      return;
+    }
+    setMenyimpan(true);
+    setPesan(null);
+    onSimpan({ dailyInternetBudgetBytes: gb * GB, overnightAlertEnabled: malam })
+      .catch(() => setPesan('Gagal menyimpan pengingat — coba lagi.'))
+      .finally(() => setMenyimpan(false));
+  };
+
+  return (
+    <View style={styles.card}>
+      <Text style={styles.fieldLabel}>Batas harian total internet (GB)</Text>
+      <Text style={styles.hint}>
+        Total seluler + Wi-Fi hari ini mencapai batas ini → berbunyi sekali hari itu.
+        Kosongkan untuk mematikan.
+      </Text>
+      <TextInput
+        style={styles.input}
+        value={batasGB}
+        onChangeText={setBatasGB}
+        placeholder="Mis. 4"
+        placeholderTextColor={colors.secondary}
+        keyboardType="decimal-pad"
+        accessibilityLabel="Batas harian total internet dalam GB"
+      />
+      <View style={styles.switchRow}>
+        <View style={styles.switchText}>
+          <Text style={styles.fieldLabel}>Pengingat pemakaian malam</Text>
+          <Text style={styles.hint}>
+            Bila pemakaian 00:00–06:00 mencapai 500 MB, beri tahu pagi harinya — sekali
+            per malam.
+          </Text>
+        </View>
+        <Switch
+          value={malam}
+          onValueChange={setMalam}
+          trackColor={{ true: colors.sageActive, false: colors.sageLight }}
+          thumbColor={malam ? colors.primary : colors.secondary}
+          accessibilityRole="switch"
+          accessibilityState={{ checked: malam }}
+          accessibilityLabel="Pengingat pemakaian malam"
+        />
+      </View>
+      {pesan ? <Text style={styles.hint}>{pesan}</Text> : null}
+      <Pressable
+        style={[styles.button, !kotor && styles.buttonDisabled]}
+        onPress={simpan}
+        disabled={!kotor || menyimpan}
+        hitSlop={4}
+      >
+        <Text style={styles.buttonText}>{menyimpan ? 'Menyimpan…' : 'Simpan pengingat'}</Text>
+      </Pressable>
+
+      <Text style={[styles.fieldLabel, styles.subSection]}>Batas per aplikasi</Text>
+      {perAppBudgets.length === 0 ? (
+        <Text style={styles.hint}>
+          Belum ada batas per aplikasi. Buka detail sebuah aplikasi dari tab Aplikasi
+          untuk mengatur batas hariannya.
+        </Text>
+      ) : (
+        perAppBudgets.map((b) => (
+          <View key={b.packageName} style={styles.switchRow}>
+            <View style={styles.switchText}>
+              <Text style={styles.fieldLabel}>{b.label}</Text>
+              <Text style={styles.hint}>Batas harian {formatGB(b.budgetBytes)}</Text>
+            </View>
+            <Pressable
+              style={styles.textButton}
+              onPress={() => void onHapusBatasAplikasi(b.packageName)}
+              hitSlop={4}
+              accessibilityRole="button"
+              accessibilityLabel={`Hapus batas harian ${b.label}`}
+            >
+              <Text style={[styles.textButtonText, styles.deleteText]}>Hapus</Text>
+            </Pressable>
+          </View>
+        ))
+      )}
+      <Text style={styles.hint}>
+        Pengingat diperiksa tiap aplikasi dibuka dan lewat tugas latar (maksimal tiap
+        60 menit) — bisa telat sampai sejam.
+      </Text>
+    </View>
+  );
+}
+
+/**
  * Status ambang paket berjalan: ambang mana yang sudah berbunyi, mana
  * yang belum tercapai — supaya tidak ada lagi "gatau notif persenannya".
  */
@@ -388,7 +515,7 @@ function StatusAmbang() {
     };
   }, []);
 
-  if (!quotaSummary || !state) {
+  if (!state) {
     return (
       <View style={styles.card}>
         <Text style={styles.hint}>Memuat status ambang…</Text>
@@ -396,29 +523,48 @@ function StatusAmbang() {
     );
   }
 
-  const terpakai = computeQuota(settings.pkg, quotaSummary.mobileBytes, new Date(), buckets);
-  const signature = packageSignature(settings.pkg);
+  const pkg = settings.pkg;
+  // Tanpa paket aktif, tidak ada ambang kuota yang berlaku — tapi
+  // tanggal ringkasan harian terakhir tetap ditampilkan.
+  if (pkg !== null && !quotaSummary) {
+    return (
+      <View style={styles.card}>
+        <Text style={styles.hint}>Memuat status ambang…</Text>
+      </View>
+    );
+  }
+  const terpakai =
+    pkg !== null && quotaSummary
+      ? computeQuota(pkg, quotaSummary.mobileBytes, new Date(), buckets)
+      : null;
+  const signature = pkg !== null ? packageSignature(pkg) : null;
 
   return (
     <View style={styles.card}>
-      {NOTIFICATION_THRESHOLD_OPTIONS.map((nilai) => {
-        const sudah = state.firedIds.includes(`${signature}:ambang:${nilai}`);
-        const aktif = settings.notificationThresholds.includes(nilai);
-        const tercapai = terpakai.usedPercent >= nilai;
-        const status = sudah
-          ? 'Sudah berbunyi ✓'
-          : !aktif
-            ? 'Nonaktif di Pengaturan'
-            : tercapai
-              ? 'Tercapai — berbunyi pada pemeriksaan berikutnya'
-              : `Belum tercapai (terpakai ${Math.round(terpakai.usedPercent)}%)`;
-        return (
-          <View key={nilai} style={styles.statusRow}>
-            <Text style={styles.fieldLabel}>Kuota terpakai {nilai}%</Text>
-            <Text style={styles.statusValue}>{status}</Text>
-          </View>
-        );
-      })}
+      {pkg === null || terpakai === null || signature === null ? (
+        <Text style={styles.hint}>
+          Tidak ada paket aktif — peringatan ambang kuota tidak berlaku.
+        </Text>
+      ) : (
+        NOTIFICATION_THRESHOLD_OPTIONS.map((nilai) => {
+          const sudah = state.firedIds.includes(`${signature}:ambang:${nilai}`);
+          const aktif = settings.notificationThresholds.includes(nilai);
+          const tercapai = terpakai.usedPercent >= nilai;
+          const status = sudah
+            ? 'Sudah berbunyi ✓'
+            : !aktif
+              ? 'Nonaktif di Pengaturan'
+              : tercapai
+                ? 'Tercapai — berbunyi pada pemeriksaan berikutnya'
+                : `Belum tercapai (terpakai ${Math.round(terpakai.usedPercent)}%)`;
+          return (
+            <View key={nilai} style={styles.statusRow}>
+              <Text style={styles.fieldLabel}>Kuota terpakai {nilai}%</Text>
+              <Text style={styles.statusValue}>{status}</Text>
+            </View>
+          );
+        })
+      )}
       <Text style={styles.hint}>
         {state.lastDailySummaryDateISO
           ? `Ringkasan harian terakhir terkirim ${formatDateID(new Date(state.lastDailySummaryDateISO))}.`
@@ -431,7 +577,8 @@ function StatusAmbang() {
 /**
  * Tab Pengaturan (T4.1 + v1.1.0) — seksi terpisah per fitur, masing-masing
  * dengan tombol Simpan sendiri: Profil (foto + nama), Paket aktif,
- * Notifikasi, Status ambang, Izin akses penggunaan, Lainnya.
+ * Notifikasi, Pengingat internet (v1.3.0), Status ambang, Izin akses
+ * penggunaan, Lainnya.
  */
 export default function PengaturanScreen() {
   const insets = useSafeAreaInsets();
@@ -441,6 +588,13 @@ export default function PengaturanScreen() {
     updateUserName,
     updateProfilePhoto,
     updateNotificationOptions,
+    updateDailyInternetBudget,
+    updateOvernightAlert,
+    removePerAppBudget,
+    deleteActivePackage,
+    deleteHistoryEntry,
+    clearHistory,
+    restoreHistoryEntry,
     resetWelcomeSeen,
   } = useSettings();
   const { nativeStatus, refresh, quotaSummary } = useUsage();
@@ -450,8 +604,61 @@ export default function PengaturanScreen() {
     if (draf.foto !== settings.profilePhoto) await updateProfilePhoto(draf.foto);
   };
 
+  const simpanPengingat = async (draf: {
+    dailyInternetBudgetBytes: number;
+    overnightAlertEnabled: boolean;
+  }) => {
+    if (draf.dailyInternetBudgetBytes !== settings.dailyInternetBudgetBytes) {
+      await updateDailyInternetBudget(draf.dailyInternetBudgetBytes);
+    }
+    if (draf.overnightAlertEnabled !== settings.overnightAlertEnabled) {
+      await updateOvernightAlert(draf.overnightAlertEnabled);
+    }
+  };
+
+  const hapusPaketAktif = () => {
+    Alert.alert(
+      'Hapus paket aktif?',
+      'Paket aktif akan diarsipkan ke riwayat dan tidak ada lagi paket aktif sampai kamu menambah yang baru. Peringatan ambang kuota ikut berhenti.',
+      [
+        { text: 'Batal', style: 'cancel' },
+        {
+          text: 'Hapus paket',
+          style: 'destructive',
+          onPress: () => void deleteActivePackage(),
+        },
+      ],
+    );
+  };
+
+  const hapusEntriRiwayat = (key: string) => {
+    Alert.alert('Hapus riwayat paket ini?', 'Entri riwayat ini akan hilang selamanya.', [
+      { text: 'Batal', style: 'cancel' },
+      {
+        text: 'Hapus',
+        style: 'destructive',
+        onPress: () => void deleteHistoryEntry(key),
+      },
+    ]);
+  };
+
+  const hapusSemuaRiwayat = () => {
+    Alert.alert(
+      'Hapus semua riwayat paket?',
+      'Seluruh riwayat paket akan hilang selamanya. Paket aktif tidak ikut terhapus.',
+      [
+        { text: 'Batal', style: 'cancel' },
+        {
+          text: 'Hapus semua',
+          style: 'destructive',
+          onPress: () => void clearHistory(),
+        },
+      ],
+    );
+  };
+
   const pkg = settings.pkg;
-  const akhir = packageLastDay(pkg);
+  const akhir = pkg !== null ? packageLastDay(pkg) : null;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -476,24 +683,54 @@ export default function PengaturanScreen() {
         />
 
         <Text style={styles.sectionTitle}>Paket aktif</Text>
-        <View style={styles.card}>
-          <Text style={styles.packageName}>{pkg.name}</Text>
-          <Text style={styles.packageBig}>{formatGB(pkg.quotaBytes)}</Text>
-          <Text style={styles.packageRow}>
-            {operatorLabel(pkg)} · Mulai {formatDateID(new Date(pkg.startDate))} ·{' '}
-            {pkg.durationDays} hari · berakhir {formatDateID(akhir)}
-          </Text>
-          <Pressable
-            style={styles.button}
-            onPress={() => router.push('/package-detail')}
-            hitSlop={4}
-          >
-            <Text style={styles.buttonText}>Lihat / ubah paket</Text>
-          </Pressable>
-        </View>
+        {pkg !== null && akhir !== null ? (
+          <View style={styles.card}>
+            <Text style={styles.packageName}>{pkg.name}</Text>
+            <Text style={styles.packageBig}>{formatGB(pkg.quotaBytes)}</Text>
+            <Text style={styles.packageRow}>
+              {operatorLabel(pkg)} · Mulai {formatDateID(new Date(pkg.startDate))} ·{' '}
+              {pkg.durationDays} hari · berakhir {formatDateID(akhir)}
+            </Text>
+            <Pressable
+              style={styles.button}
+              onPress={() => router.push('/package-detail')}
+              hitSlop={4}
+            >
+              <Text style={styles.buttonText}>Lihat / ubah paket</Text>
+            </Pressable>
+            <Pressable style={styles.textButton} onPress={hapusPaketAktif} hitSlop={4}>
+              <Text style={[styles.textButtonText, styles.deleteText]}>Hapus paket</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <View style={styles.card}>
+            <Text style={styles.fieldLabel}>Belum ada paket aktif.</Text>
+            <Text style={styles.hint}>
+              Tambah paket untuk melihat sisa kuota dan prediksi habis di Beranda.
+            </Text>
+            <Pressable
+              style={styles.button}
+              onPress={() => router.push('/package-detail')}
+              hitSlop={4}
+            >
+              <Text style={styles.buttonText}>Tambah paket</Text>
+            </Pressable>
+          </View>
+        )}
 
         <Text style={styles.sectionTitle}>Riwayat paket</Text>
-        <PackageHistoryList history={settings.history} />
+        <PackageHistoryList
+          history={settings.history}
+          onDelete={hapusEntriRiwayat}
+          onRestore={(key) => void restoreHistoryEntry(key)}
+        />
+        {settings.history.length > 0 ? (
+          <Pressable style={styles.textButton} onPress={hapusSemuaRiwayat} hitSlop={4}>
+            <Text style={[styles.textButtonText, styles.deleteText]}>
+              Hapus semua riwayat
+            </Text>
+          </Pressable>
+        ) : null}
 
         <Text style={styles.sectionTitle}>Notifikasi</Text>
         <NotifikasiSection
@@ -510,6 +747,18 @@ export default function PengaturanScreen() {
             dailySummaryHour: settings.dailySummaryHour,
           }}
           onSimpan={updateNotificationOptions}
+        />
+
+        <Text style={styles.sectionTitle}>Pengingat internet</Text>
+        <PengingatInternetSection
+          key={`${settings.dailyInternetBudgetBytes}|${settings.overnightAlertEnabled}|${settings.perAppBudgets.map((b) => `${b.packageName}:${b.budgetBytes}`).join(',')}`}
+          tersimpan={{
+            dailyInternetBudgetBytes: settings.dailyInternetBudgetBytes,
+            overnightAlertEnabled: settings.overnightAlertEnabled,
+          }}
+          perAppBudgets={settings.perAppBudgets}
+          onSimpan={simpanPengingat}
+          onHapusBatasAplikasi={removePerAppBudget}
         />
 
         <Text style={styles.sectionTitle}>Status ambang</Text>
@@ -640,6 +889,9 @@ const styles = StyleSheet.create({
   textButtonText: {
     ...typography.label,
     color: colors.primary,
+  },
+  deleteText: {
+    color: colors.critical,
   },
   version: {
     ...typography.caption,
