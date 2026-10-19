@@ -10,7 +10,7 @@ import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { AndroidImportance } from 'expo-notifications';
 
-/** Kanal Android untuk semua notifikasi Kuota Tracker. */
+/** Kanal Android untuk semua notifikasi Internet Tracker. */
 const CHANNEL_ID = 'kuota-tracker';
 
 /** Data yang boleh dibawa notifikasi: hanya rute /alerts. */
@@ -106,7 +106,7 @@ export async function sendLocalNotification(
 /** Notifikasi uji dari Pengaturan — membuktikan jalur pengiriman jalan. */
 export async function sendTestNotification(): Promise<boolean> {
   return sendLocalNotification(
-    'Notifikasi uji Kuota Tracker',
+    'Notifikasi uji Internet Tracker',
     'Jalur notifikasi jalan. Peringatan kuota akan muncul seperti ini.',
   );
 }
