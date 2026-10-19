@@ -6,6 +6,7 @@ const SEGMENTS: { key: Period; label: string }[] = [
   { key: '24h', label: 'Hari ini' },
   { key: '7d', label: '7 hari' },
   { key: '30d', label: '30 hari' },
+  { key: 'custom', label: 'Custom' },
 ];
 
 type Props = {
