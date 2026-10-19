@@ -57,13 +57,15 @@ export default function StatistikScreen() {
       .sort((a, b) => (a.dateISO < b.dateISO ? -1 : 1));
   }, [buckets, rentang]);
 
-  // Bucket dalam jendela paket — bahan grafik kumulatif.
+  // Bucket dalam jendela paket — bahan grafik kumulatif. Tanpa paket
+  // aktif, kosong (kartu laju ideal paket ikut disembunyikan).
   const bucketPaket = useMemo(() => {
+    if (pkg === null) return [];
     const mulai = dateISOOf(parseDateISO(pkg.startDate));
     return buckets
       .filter((b) => b.dateISO >= mulai && b.dateISO <= hariIniISO)
       .sort((a, b) => (a.dateISO < b.dateISO ? -1 : 1));
-  }, [buckets, pkg.startDate, hariIniISO]);
+  }, [buckets, pkg, hariIniISO]);
 
   // Rincian periode: rata-rata hari PENUH (hari ini parsial dikecualikan),
   // hari terboros (TOTAL internet terbesar), aplikasi teratas (TOTAL
@@ -128,9 +130,11 @@ export default function StatistikScreen() {
   );
 
   // Grafik kumulatif: titik (tanggal, kumulatif seluler) + garis ideal.
+  // Tanpa paket aktif, kosong — kartunya disembunyikan.
   const kumulatif = useMemo(
-    () =>
-      bucketPaket.reduce<{ dateISO: string; kumulatif: number; ideal: number }[]>(
+    () => {
+      if (pkg === null) return [];
+      return bucketPaket.reduce<{ dateISO: string; kumulatif: number; ideal: number }[]>(
         (titik, b) => {
           const sebelumnya = titik.length > 0 ? titik[titik.length - 1].kumulatif : 0;
           const hariKe =
@@ -143,7 +147,8 @@ export default function StatistikScreen() {
           return [...titik, { dateISO: b.dateISO, kumulatif: sebelumnya + b.mobileBytes, ideal }];
         },
         [],
-      ),
+      );
+    },
     [bucketPaket, pkg],
   );
 
@@ -154,7 +159,7 @@ export default function StatistikScreen() {
 
   const maksBatang = Math.max(1, ...bucketPeriode.map((b) => b.mobileBytes + b.wifiBytes));
   const maksKumulatif = Math.max(
-    pkg.quotaBytes,
+    pkg?.quotaBytes ?? 1,
     1,
     ...kumulatif.map((p) => Math.max(p.kumulatif, p.ideal)),
   );
@@ -387,9 +392,10 @@ export default function StatistikScreen() {
               )}
             </View>
 
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Kumulatif terhadap laju ideal paket</Text>
-              {kumulatif.length === 0 ? (
+            {pkg !== null ? (
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Kumulatif terhadap laju ideal paket</Text>
+                {kumulatif.length === 0 ? (
                 <Text style={styles.empty}>
                   Belum ada riwayat harian dalam jendela paket berjalan. Data harian mulai
                   terkumpul sejak {sejakTerkumpul}.
@@ -442,7 +448,8 @@ export default function StatistikScreen() {
                   </Text>
                 </>
               )}
-            </View>
+              </View>
+            ) : null}
 
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Rincian {periodLabel(period, customRange).toLowerCase()}</Text>
