@@ -37,7 +37,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "test": "node --import ./src/lib/__tests__/register.mjs --test src/lib/__tests__/phase2.test.mjs src/lib/__tests__/phase3.test.mjs src/lib/__tests__/phase3-summary-snapshot.test.mjs src/lib/__tests__/phase4.test.mjs src/lib/__tests__/chartPoints.test.mjs src/lib/__tests__/period.test.mjs"
+    "test": "node --import ./src/lib/__tests__/register.mjs --test src/lib/__tests__/phase2.test.mjs src/lib/__tests__/phase3.test.mjs src/lib/__tests__/phase3-summary-snapshot.test.mjs src/lib/__tests__/phase4.test.mjs src/lib/__tests__/chartPoints.test.mjs src/lib/__tests__/period.test.mjs src/lib/__tests__/reminders.test.mjs"
   },
   "private": true
 }
