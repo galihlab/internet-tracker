@@ -46,6 +46,7 @@ export default function TodayUsageCard({ daily }: Props) {
   }
 
   const delta = deltaText(daily.todayMobileBytes, daily.yesterdaySameHourMobileBytes);
+  const wifiHariIni = daily.last7Days.find((d) => d.isToday)?.wifiBytes ?? 0;
   const maks = Math.max(1, ...daily.last7Days.map((d) => d.mobileBytes));
   const slotWidth = CHART_WIDTH / 7;
   // Cap waktu snapshot terakhir — hanya tampil bila data berasal dari
@@ -65,6 +66,7 @@ export default function TodayUsageCard({ daily }: Props) {
       <Text style={styles.title}>Penggunaan Hari Ini</Text>
       <Text style={styles.big}>{formatBytes(daily.todayMobileBytes)}</Text>
       <Text style={styles.delta}>{delta.text}</Text>
+      <Text style={styles.wifi}>Wi-Fi hari ini {formatBytes(wifiHariIni)} · tidak mengurangi kuota</Text>
       {capSnapshot ? <Text style={styles.snapshot}>{capSnapshot}</Text> : null}
       <Svg
         width="100%"
@@ -122,6 +124,11 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   delta: {
+    ...typography.caption,
+    color: colors.secondary,
+    marginTop: spacing.xs,
+  },
+  wifi: {
     ...typography.caption,
     color: colors.secondary,
     marginTop: spacing.xs,
