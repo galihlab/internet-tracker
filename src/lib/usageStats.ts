@@ -1,6 +1,13 @@
 import { sqliteStore } from './db';
-import { GB } from './format';
-import { startOfDayMillis, todayWindow } from './windows';
+import { GB, formatDateID } from './format';
+import {
+  customRangeWindow,
+  normalizeCustomRange,
+  parseDateISO,
+  startOfDayMillis,
+  todayWindow,
+  type CustomRange,
+} from './windows';
 import { normalisasiAppUsage, reconcileAppUsage } from './appUsage';
 import {
   emptySummary,
@@ -22,7 +29,7 @@ import type {
   DailyBucket,
 } from '../../modules/usage-stats/src/UsageStats.types';
 
-export type Period = '24h' | '7d' | '30d';
+export type Period = '24h' | '7d' | '30d' | 'custom';
 
 export type AppUsage = {
   packageName: string;
@@ -81,13 +88,24 @@ function loadNative(): Promise<UsageStatsModuleType | null> {
  * kalender supaya labelnya jujur: 'Hari ini' = sejak tengah malam hari
  * ini (bukan 24 jam ke belakang yang bergeser), '7 hari' = 7 hari
  * kalender terakhir termasuk hari ini, '30 hari' = 30 hari kalender
- * terakhir termasuk hari ini.
+ * terakhir termasuk hari ini, 'custom' = rentang tanggal pilihan
+ * pengguna. Periode 'custom' tanpa rentang jatuh ke 30 hari.
  */
-export function periodToRange(period: Period, now = Date.now()): { start: number; end: number } {
+export function periodToRange(
+  period: Period,
+  now = Date.now(),
+  customRange?: CustomRange | null,
+): { start: number; end: number } {
   const today = new Date(now);
   if (period === '24h') {
     const w = todayWindow(today);
     return { start: w.start, end: w.end };
+  }
+  if (period === 'custom') {
+    if (customRange) return customRangeWindow(customRange, today);
+    const startDate = new Date(today);
+    startDate.setDate(startDate.getDate() - 29);
+    return { start: startOfDayMillis(startDate), end: now };
   }
   const days = period === '7d' ? 7 : 30;
   const startDate = new Date(today);
@@ -95,8 +113,15 @@ export function periodToRange(period: Period, now = Date.now()): { start: number
   return { start: startOfDayMillis(startDate), end: now };
 }
 
-export function periodLabel(period: Period): string {
-  return period === '24h' ? 'Hari ini' : period === '7d' ? '7 hari terakhir' : '30 hari terakhir';
+export function periodLabel(period: Period, customRange?: CustomRange | null): string {
+  if (period === '24h') return 'Hari ini';
+  if (period === '7d') return '7 hari terakhir';
+  if (period === '30d') return '30 hari terakhir';
+  if (customRange) {
+    const r = normalizeCustomRange(customRange);
+    return `${formatDateID(parseDateISO(r.startDateISO))} – ${formatDateID(parseDateISO(r.endDateISO))}`;
+  }
+  return 'Rentang custom';
 }
 
 /** data contoh, dipakai hanya saat modul native tidak tersedia. jelas dilabeli di UI. */
@@ -331,8 +356,11 @@ export async function getDeviceUsageForRange(
   };
 }
 
-export async function getUsageSummary(period: Period): Promise<UsageSummary> {
-  const { start, end } = periodToRange(period);
+export async function getUsageSummary(
+  period: Period,
+  customRange?: CustomRange | null,
+): Promise<UsageSummary> {
+  const { start, end } = periodToRange(period, undefined, customRange);
   return getUsageSummaryForRange(start, end);
 }
 
