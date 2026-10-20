@@ -1,6 +1,8 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect } from 'react';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Period } from '../lib/usageStats';
 import { colors, radius, spacing, typography } from '../theme';
+import { useSlidingPill } from './useSlidingPill';
 
 const SEGMENTS: { key: Period; label: string }[] = [
   { key: '24h', label: 'Hari ini' },
@@ -22,15 +24,28 @@ type Props = {
  * diganti-ganti.
  */
 export default function PeriodSegmentedControl({ value, onChange }: Props) {
+  // Pill putih aktif meluncur mengikuti segmen — pola yang sama dengan
+  // dock tab (useSlidingPill).
+  const { x, width, moveTo, handleLayout } = useSlidingPill();
+
+  useEffect(() => {
+    moveTo(value);
+  }, [value, moveTo]);
+
   return (
     <View style={styles.row} accessibilityRole="tablist">
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.indicator, { width, transform: [{ translateX: x }] }]}
+      />
       {SEGMENTS.map((s) => {
         const active = value === s.key;
         return (
           <Pressable
             key={s.key}
             onPress={() => onChange(s.key)}
-            style={[styles.segment, active && styles.segmentActive]}
+            onLayout={handleLayout(s.key, active)}
+            style={styles.segment}
             accessibilityRole="tab"
             accessibilityState={{ selected: active }}
             accessibilityLabel={s.label}
@@ -51,6 +66,21 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     padding: spacing.xs,
   },
+  // Pill indikator segmen aktif — posisinya digeser oleh useSlidingPill.
+  indicator: {
+    position: 'absolute',
+    top: spacing.xs,
+    bottom: spacing.xs,
+    left: 0,
+    backgroundColor: colors.surface,
+    borderRadius: radius.pill,
+    // Bayangan tipis supaya pill terasa terangkat dari relnya.
+    elevation: 2,
+    shadowColor: colors.ink,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
   segment: {
     flex: 1,
     paddingVertical: spacing.sm,
@@ -58,9 +88,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: radius.pill,
     alignItems: 'center',
-  },
-  segmentActive: {
-    backgroundColor: colors.surface,
   },
   label: {
     ...typography.label,
