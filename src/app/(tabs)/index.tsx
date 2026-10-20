@@ -11,6 +11,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import HomeHeader from '../../components/HomeHeader';
+import ScreenEnter from '../../components/ScreenEnter';
 import InternetTodayCard from '../../components/InternetTodayCard';
 import MainQuotaCard from '../../components/MainQuotaCard';
 import PredictionCard from '../../components/PredictionCard';
@@ -54,6 +55,7 @@ export default function BerandaScreen() {
   const dataSiap = !loading && (pkg ? quotaSummary !== null : summary !== null);
 
   return (
+    <ScreenEnter>
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <ScrollView
         contentContainerStyle={[
@@ -161,6 +163,7 @@ export default function BerandaScreen() {
         )}
       </ScrollView>
     </View>
+    </ScreenEnter>
   );
 }
 
