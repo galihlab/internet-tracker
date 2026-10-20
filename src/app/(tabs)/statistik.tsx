@@ -3,6 +3,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-nat
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, G, Line, Polyline, Rect, Text as SvgText } from 'react-native-svg';
 import AppIcon from '../../components/AppIcon';
+import ScreenEnter from '../../components/ScreenEnter';
 import CustomRangePicker from '../../components/CustomRangePicker';
 import PeriodSegmentedControl from '../../components/PeriodSegmentedControl';
 import StatCards from '../../components/StatCards';
@@ -179,6 +180,7 @@ export default function StatistikScreen() {
   const polylineIdeal = buildPolylinePoints(kumulatif.map((p, i) => titikKeXY(i, p.ideal)));
 
   return (
+    <ScreenEnter>
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <ScrollView
         contentContainerStyle={[
@@ -505,6 +507,7 @@ export default function StatistikScreen() {
         )}
       </ScrollView>
     </View>
+    </ScreenEnter>
   );
 }
 
