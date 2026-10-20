@@ -18,6 +18,7 @@ import DateTimePicker, {
 } from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import PackageHistoryList from '../../components/PackageHistoryList';
+import ScreenEnter from '../../components/ScreenEnter';
 import { formatCapWaktu, formatDateID, formatGB, GB } from '../../lib/format';
 import { computeQuota, operatorLabel, packageLastDay } from '../../lib/quota';
 import { useSettings } from '../../lib/settings';
@@ -661,6 +662,7 @@ export default function PengaturanScreen() {
   const akhir = pkg !== null ? packageLastDay(pkg) : null;
 
   return (
+    <ScreenEnter>
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <ScrollView
         contentContainerStyle={[
@@ -798,6 +800,7 @@ export default function PengaturanScreen() {
         </View>
       </ScrollView>
     </View>
+    </ScreenEnter>
   );
 }
 
