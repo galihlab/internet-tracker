@@ -1,8 +1,10 @@
 import type { ComponentProps } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect } from 'react';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Line, Path, Rect } from 'react-native-svg';
 import type { Tabs } from 'expo-router';
 import { colors, layout, radius, spacing, typography } from '../theme';
+import { useSlidingPill } from './useSlidingPill';
 
 // Tipe props bottom bar diambil dari prop `tabBar` milik `Tabs` sendiri:
 // expo-router 58 memakai navigator bawaannya (emitter + navigateToTab),
@@ -76,6 +78,15 @@ export default function FloatingTabBar({
   navigateToTab,
   insets,
 }: BottomTabBarProps) {
+  // Pill hijau aktif meluncur mengikuti tab (spring, native driver) —
+  // tidak lagi "tiba-tiba ada" seperti sebelumnya.
+  const { x, width, moveTo, handleLayout } = useSlidingPill();
+  const activeKey = state.routes[state.index]?.key;
+
+  useEffect(() => {
+    if (activeKey) moveTo(activeKey);
+  }, [activeKey, moveTo]);
+
   return (
     <View
       style={[
@@ -86,6 +97,11 @@ export default function FloatingTabBar({
         },
       ]}
     >
+      {/* Pill indikator — di belakang tab, tidak menangkap sentuhan. */}
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.indicator, { width, transform: [{ translateX: x }] }]}
+      />
       {state.routes.map((route, index) => {
         const { options } = descriptors[route.key];
         const label =
@@ -115,7 +131,8 @@ export default function FloatingTabBar({
             accessibilityLabel={label}
             onPress={onPress}
             onLongPress={onLongPress}
-            style={[styles.tab, isFocused && styles.tabActive]}
+            onLayout={handleLayout(route.key, isFocused)}
+            style={styles.tab}
             hitSlop={4}
           >
             <TabIcon
@@ -158,6 +175,15 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
   },
+  // Pill indikator tab aktif — posisinya digeser oleh useSlidingPill.
+  indicator: {
+    position: 'absolute',
+    top: spacing.sm,
+    bottom: spacing.sm,
+    left: 0,
+    backgroundColor: colors.sageActive,
+    borderRadius: radius.pill,
+  },
   tab: {
     flex: 1,
     height: '100%',
@@ -165,9 +191,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 1,
-  },
-  tabActive: {
-    backgroundColor: colors.sageActive,
   },
   label: {
     ...typography.label,
