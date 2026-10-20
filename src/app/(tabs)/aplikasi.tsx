@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import AppUsageList from '../../components/AppUsageList';
+import ScreenEnter from '../../components/ScreenEnter';
 import CustomRangePicker from '../../components/CustomRangePicker';
 import PeriodSegmentedControl from '../../components/PeriodSegmentedControl';
 import { formatBytes, formatCapWaktu } from '../../lib/format';
@@ -39,6 +40,7 @@ export default function AplikasiScreen() {
   const totalPerangkat = summary ? summary.totalBytes : 0;
 
   return (
+    <ScreenEnter>
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <ScrollView
         contentContainerStyle={[
@@ -134,6 +136,7 @@ export default function AplikasiScreen() {
         </Text>
       </ScrollView>
     </View>
+    </ScreenEnter>
   );
 }
 
